@@ -5,5 +5,60 @@
   "main": "plant.js",
   "author": "Tom Wagner <tomas.wagner@gmail.com>",
   "license": "MIT",
-  "private": false
+  "private": false,
+  "scripts": {
+    "bundle": "pkg bin/plant.js -c package.json -o packed/plant --options no-warnings",
+    "build": "ncc build ./plant.js",
+    "build-download": "ncc build ./download/src --out ./download/dist",
+    "test": "yarn jest",
+    "semantic-release": "semantic-release",
+    "pack": "rm -rf packed && yarn build && yarn bundle",
+    "prepublishOnly": "yarn build-download && cp /dev/null download/dist/plant"
+  },
+  "bin": {
+    "plant": "./plant.js"
+  },
+  "files": [
+    "download/dist",
+    "download/install.js"
+  ],
+  "pkg": {
+    "scripts": [
+      "dist/*.js"
+    ],
+    "targets": [
+      "node10-alpine-x64",
+      "node10-linux-x64",
+      "node10-macos-x64",
+      "node10-win-x64"
+    ]
+  },
+  "keywords": [
+    "cli",
+    "plant",
+    "nodejs"
+  ],
+  "dependencies": {
+    "chalk": "^2.4.1",
+    "conf": "^2.1.0",
+    "fs-extra": "^7.0.1",
+    "gitlab": "^4.2.7",
+    "globby": "^8.0.1",
+    "inquirer": "^6.0.0",
+    "isomorphic-fetch": "^2.2.1",
+    "mustache": "^3.0.1",
+    "nodegit": "^0.23.0",
+    "ora": "^3.0.0",
+    "pkg-up": "^2.0.0",
+    "ramda": "^0.26.1",
+    "tmp": "^0.0.33",
+    "update-notifier": "^2.5.0"
+  },
+  "devDependencies": {
+    "@zeit/ncc": "^0.4.1",
+    "eslint-plugin-jest": "^21.22.0",
+    "jest": "^23.6.0",
+    "pkg": "^4.3.5",
+    "semantic-release": "^15.9.12"
+  }
 }
