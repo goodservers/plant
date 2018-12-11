@@ -1,0 +1,9 @@
+{
+  "name": "@goodservers/plant",
+  "version": "1.0.0-alpha.1",
+  "description": "A CLI to easyli Deploy any project to Gitlab and VPS.",
+  "main": "plant.js",
+  "author": "Tom Wagner <tomas.wagner@gmail.com>",
+  "license": "MIT",
+  "private": false
+}
