@@ -1,0 +1,24 @@
+stages:
+  - build
+  - publish
+build:
+  stage: build
+  image: mhart/alpine-node:10
+  services:
+    - node:latest
+  script:
+    - yarn
+    - yarn run pack
+publish:
+  stage: publish
+  dependencies:
+    - build
+  image: mhart/alpine-node:10
+  services:
+    - node:latest
+  only:
+    - "master"
+  environment: production
+  script:
+    - echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
+    - npm publish --tag latest
