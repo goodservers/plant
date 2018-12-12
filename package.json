@@ -1,19 +1,19 @@
 {
   "name": "@goodservers/plant",
-  "version": "1.0.0-alpha.10",
+  "version": "1.0.0-alpha.13",
   "description": "A CLI to easyli Deploy any project to Gitlab and VPS.",
   "main": "plant.js",
   "author": "Tom Wagner <tomas.wagner@gmail.com>",
   "license": "MIT",
   "private": false,
   "scripts": {
-    "bundle": "pkg bin/plant.js -c package.json -o packed/plant --options no-warnings",
-    "build": "ncc build ./plant.js",
-    "build-download": "ncc build ./download/src --out ./download/dist",
+    "build-download": "ncc build ./download/src --out ./download/dist && cp dist/nodegit.node download/dist/nodegit.node",
     "gzip": "ls packed/plant* | xargs gzip",
     "test": "yarn jest",
     "semantic-release": "semantic-release",
     "pack": "rm -rf packed && yarn build && yarn bundle",
+    "build": "ncc build ./plant.js",
+    "bundle": "pkg bin/plant.js -c package.json -o packed/plant --options no-warnings",
     "postinstall": "node download/install.js",
     "prepublishOnly": "yarn build-download && cp /dev/null download/dist/plant"
   },
