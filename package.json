@@ -1,6 +1,6 @@
 {
   "name": "@goodservers/plant",
-  "version": "1.0.0-alpha.15",
+  "version": "1.0.0-alpha.16",
   "description": "A CLI to easily deploy your project to Gitlab and your VPS.",
   "main": "plant.js",
   "author": "Tom Wagner <tomas.wagner@gmail.com>",
