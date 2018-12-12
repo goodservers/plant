@@ -1,13 +1,13 @@
 {
   "name": "@goodservers/plant",
-  "version": "1.0.0-alpha.13",
+  "version": "1.0.0-alpha.14",
   "description": "A CLI to easyli Deploy any project to Gitlab and VPS.",
   "main": "plant.js",
   "author": "Tom Wagner <tomas.wagner@gmail.com>",
   "license": "MIT",
   "private": false,
   "scripts": {
-    "build-download": "ncc build ./download/src --out ./download/dist && cp dist/nodegit.node download/dist/nodegit.node",
+    "build-download": "ncc build ./download/src --out ./download/dist",
     "gzip": "ls packed/plant* | xargs gzip",
     "test": "yarn jest",
     "semantic-release": "semantic-release",
@@ -102,6 +102,7 @@
     "@zeit/ncc": "^0.4.1",
     "async-retry": "^1.2.3",
     "death": "^1.1.0",
+    "eslint": "^5.10.0",
     "eslint-plugin-jest": "^21.22.0",
     "jest": "^23.6.0",
     "pkg": "^4.3.5",
