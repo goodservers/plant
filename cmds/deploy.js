@@ -59,6 +59,7 @@ module.exports.init = async () => {
         );
       }
     }
+    spinner.stop();
 
     // TODO: selecting template
     const selectedTemplate = await selectTemplate();
