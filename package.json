@@ -1,22 +1,24 @@
 {
   "name": "@goodservers/plant",
-  "version": "1.0.0-alpha.1",
-  "description": "A CLI to easyli Deploy any project to Gitlab and VPS.",
+  "version": "1.0.0-alpha.16",
+  "description": "A CLI to easily deploy your project to Gitlab and your VPS.",
   "main": "plant.js",
   "author": "Tom Wagner <tomas.wagner@gmail.com>",
   "license": "MIT",
   "private": false,
   "scripts": {
-    "bundle": "pkg bin/plant.js -c package.json -o packed/plant --options no-warnings",
-    "build": "ncc build ./plant.js",
     "build-download": "ncc build ./download/src --out ./download/dist",
+    "gzip": "ls packed/plant* | xargs gzip",
     "test": "yarn jest",
     "semantic-release": "semantic-release",
     "pack": "rm -rf packed && yarn build && yarn bundle",
+    "build": "ncc build ./plant.js",
+    "bundle": "pkg bin/plant.js -c package.json -o packed/plant --options no-warnings",
+    "postinstall": "node download/install.js",
     "prepublishOnly": "yarn build-download && cp /dev/null download/dist/plant"
   },
   "bin": {
-    "plant": "./plant.js"
+    "plant": "download/dist/plant"
   },
   "files": [
     "download/dist",
@@ -33,6 +35,48 @@
       "node10-win-x64"
     ]
   },
+  "eslintConfig": {
+    "extends": [
+      "airbnb",
+      "prettier"
+    ],
+    "rules": {
+      "import/no-dynamic-require": 0,
+      "global-require": 0,
+      "import/no-duplicates": 0,
+      "guard-for-in": 0,
+      "no-restricted-globals": 0,
+      "import/prefer-default-export": 0,
+      "no-loop-func": 0,
+      "prefer-const": 0,
+      "no-nested-ternary": 0,
+      "class-methods-use-this": 0,
+      "no-continue": 0,
+      "no-control-regex": 0,
+      "no-empty": 0,
+      "camelcase": 0,
+      "func-names": 0,
+      "no-shadow": 0,
+      "no-plusplus": 0,
+      "no-param-reassign": 0,
+      "consistent-return": 0,
+      "prefer-destructuring": 0,
+      "no-bitwise": 0,
+      "no-console": 0,
+      "no-use-before-define": 0,
+      "no-restricted-syntax": 0,
+      "no-await-in-loop": 0,
+      "no-underscore-dangle": 0,
+      "import/no-extraneous-dependencies": 0
+    }
+  },
+  "eslintIgnore": [
+    "download",
+    "dist",
+    "test/fixtures",
+    "bin",
+    "link"
+  ],
   "keywords": [
     "cli",
     "plant",
@@ -56,9 +100,13 @@
   },
   "devDependencies": {
     "@zeit/ncc": "^0.4.1",
+    "async-retry": "^1.2.3",
+    "death": "^1.1.0",
+    "eslint": "^5.10.0",
     "eslint-plugin-jest": "^21.22.0",
     "jest": "^23.6.0",
     "pkg": "^4.3.5",
-    "semantic-release": "^15.9.12"
+    "semantic-release": "^15.9.12",
+    "which-promise": "^1.0.0"
   }
 }

@@ -1,6 +1,9 @@
 stages:
   - build
+  - compress
+  - upload
   - publish
+
 build:
   stage: build
   image: mhart/alpine-node:10
@@ -9,16 +12,59 @@ build:
   script:
     - yarn
     - yarn run pack
-publish:
-  stage: publish
+  artifacts:
+    paths:
+    - dist
+    - packed
+    - node_modules
+compress:
+  stage: compress
   dependencies:
     - build
   image: mhart/alpine-node:10
   services:
     - node:latest
   only:
-    - "master"
+    - tags
+  environment: production
+  script:
+    - yarn gzip
+  artifacts:
+    paths:
+    - packed
+upload:
+  stage: upload
+  dependencies:
+    - build
+    - compress
+  image: golang:1.10
+  # services:
+    # - node:latest
+    # - golang:1.10
+  only:
+    - tags
+  environment: production
+  script:
+    - go get github.com/aktau/github-release
+    - github-release release -t `git describe --tags`
+    - github-release upload -R -t `git describe --tags` -n plant-alpine.gz -f ./packed/plant-alpine.gz
+    - github-release upload -R -t `git describe --tags` -n plant-linux.gz -f ./packed/plant-linux.gz
+    - github-release upload -R -t `git describe --tags` -n plant-macos.gz -f ./packed/plant-macos.gz
+    - github-release upload -R -t `git describe --tags` -n plant-win.exe.gz -f ./packed/plant-win.exe.gz
+publish:
+  stage: publish
+  dependencies:
+    - build
+    - compress
+    - upload
+  image: mhart/alpine-node:10
+  services:
+    - node:latest
+  only:
+    - tags
   environment: production
   script:
     - echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
-    - npm publish --tag latest
+    #- npm login --registry=https://registry.npmjs.org --scope=@goodservers --always-auth
+    - yarn prepublishOnly
+    - npm publish . --access=public --tag latest
