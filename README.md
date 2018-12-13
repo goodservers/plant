@@ -5,7 +5,7 @@ Heroku like deployment tool for setup automatic deployment with Docker and Gitla
 ## Installation
 Install [Node.js](https://nodejs.org/) and then run this command
 ```sh
-npm install -g plant-cli
+npm install -g @goodservers/plant
 ```
 ## Usage
 To get started

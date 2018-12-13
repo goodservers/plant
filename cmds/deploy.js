@@ -31,7 +31,7 @@ module.exports.init = async () => {
       ? await Repository.open('.')
       : await Repository.init(`.`, 0);
 
-    spinner.start('Checking repository...');
+    // spinner.start('Checking repository...');
 
     if (!(await Gitlab.hasGitlabRemote(repository))) {
       // const remotes = await getGitRemotes(repository);
@@ -59,6 +59,7 @@ module.exports.init = async () => {
         );
       }
     }
+    // spinner.stop();
 
     // TODO: selecting template
     const selectedTemplate = await selectTemplate();
