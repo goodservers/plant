@@ -1,7 +1,6 @@
-'use strict';
-const { init } = require('../prompts/init');
-const deploy = require('./deploy');
-const server = require('./server');
+import { init } from '../prompts/init';
+import * as deploy from './deploy';
+import * as server from './server';
 
 module.exports.init = async () => {
   try {

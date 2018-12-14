@@ -1,22 +1,17 @@
-const fetch = require('isomorphic-fetch');
+import fetch from 'isomorphic-fetch';
 
-const fetchText = url =>
-  fetch(url).then(function(response) {
+export const fetchText = (url: string): Promise<any> =>
+  fetch(url).then((response: any) => {
     if (response.status >= 400) {
       throw new Error('Bad response from server');
     }
     return response.text();
   });
 
-const fetchJson = url =>
-  fetch(url).then(function(response) {
+export const fetchJson = (url: string): Promise<any> =>
+  fetch(url).then((response: any) => {
     if (response.status >= 400) {
       throw new Error('Bad response from server');
     }
     return response.json();
   });
-
-module.exports = {
-  fetchText,
-  fetchJson
-};

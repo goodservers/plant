@@ -1,11 +1,22 @@
-const path = require('path');
-const Conf = require('conf');
+import path from 'path';
+import Conf from 'conf';
 
-const parentDir = path.dirname(process.cwd());
+export const parentDir = path.dirname(process.cwd());
 
-class CacheConf extends Conf {
+interface ConfOptions {
+  projectName?: string,
+  version?: number,
+}
 
-	constructor(options) {
+interface Options {
+  ignoreMaxAge?: boolean,
+  maxAge?: number,
+}
+
+export default class CacheConf extends Conf {
+  version?: number;
+
+	constructor(options: ConfOptions) {
 		options = Object.assign({
 			projectName: 'plant'
 		}, options);
@@ -15,8 +26,7 @@ class CacheConf extends Conf {
 		this.version = options.version;
 	}
 
-	get(key, options) {
-		options = options || {};
+	get(key: string, options: Options = {}) {
 
 		if (options.ignoreMaxAge !== true && this.isExpired(key)) {
 			super.delete(key);
@@ -28,8 +38,7 @@ class CacheConf extends Conf {
 		return item && item.data;
 	}
 
-	set(key, val, opts) {
-		opts = opts || {};
+	setKey(key: string, val: any, opts: Options = {}) {
 
 		if (typeof key === 'object') {
 			opts = val || {};
@@ -52,7 +61,7 @@ class CacheConf extends Conf {
 		}
 	}
 
-	has(key) {
+	has(key: string) {
 		if (!super.has(key)) {
 			return false;
 		}
@@ -65,7 +74,7 @@ class CacheConf extends Conf {
 		return true;
 	}
 
-	isExpired(key) {
+	isExpired(key: string) {
 		const item = super.get(key);
 
 		if (!item) {
@@ -78,5 +87,3 @@ class CacheConf extends Conf {
 		return Boolean(invalidTimestamp || invalidVersion);
 	}
 }
-
-module.exports = CacheConf;

@@ -1,27 +1,31 @@
-'use strict';
-const chalk = require('chalk');
-const inquirer = require('inquirer');
-const input = require('./inputs');
+import chalk from 'chalk';
+import inquirer from 'inquirer';
+import * as inputs from './inputs';
 
-const create = async () =>
+export const create = async (): Promise<{
+  name: string;
+  domain: string;
+  DEPLOYMENT_SERVER_IP: string;
+  DEPLOY_SERVER_PRIVATE_KEY: string;
+}> =>
   inquirer.prompt([
-    input.text({
+    inputs.text({
       name: 'name',
       message: 'Server name:',
-      validate: val => !!val.length || 'Please fill the name'
+      validate: (val: string) => !!val.length || 'Please fill the name'
     }),
-    input.domain({
+    inputs.domain({
       name: 'DEPLOYMENT_SERVER_IP'
     }),
-    input.text({
+    inputs.text({
       type: 'editor',
       name: 'DEPLOY_SERVER_PRIVATE_KEY',
       message: 'Private Key',
-      validate: val => !!val.length || 'Please fill the private key'
+      validate: (val: string) => !!val.length || 'Please fill the private key'
     })
   ]);
 
-const init = () =>
+export const init = (): Promise<{ server: string }> =>
   inquirer.prompt([
     {
       type: 'list',
@@ -37,8 +41,3 @@ const init = () =>
       ]
     }
   ]);
-
-module.exports = {
-  create,
-  init
-};

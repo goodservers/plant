@@ -1,8 +1,8 @@
-'use strict';
-const inquirer = require('inquirer');
-const { loadAvailableTemplates } = require('../loaders');
 
-const selectTemplate = async () => {
+import inquirer from 'inquirer';
+import { loadAvailableTemplates } from '../loaders';
+
+export const selectTemplate = async (): Promise<{ name: string }> => {
   const questions = [
     {
       type: 'list',
@@ -14,7 +14,3 @@ const selectTemplate = async () => {
 
   return inquirer.prompt(questions);
 };
-
-module.exports = {
-  selectTemplate
-}

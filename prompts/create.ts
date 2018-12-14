@@ -1,16 +1,8 @@
-'use strict';
-const inquirer = require('inquirer');
-const chalk = require('chalk');
-const {
-  loadAvailableRegions,
-  loadAvailableSizes,
-  loadAvailableImages,
-  loadAvailableSSHKEYS
-} = require('../loaders');
-const input = require('./inputs');
+import inquirer from 'inquirer';
+import chalk from 'chalk';
+import * as input from './inputs';
 
-
-module.exports.repositoryName = () => {
+export const repositoryName = (): Promise<{ name: string }> => {
   const questions = [
     {
       type: 'input',
@@ -22,7 +14,7 @@ module.exports.repositoryName = () => {
   return inquirer.prompt(questions);
 };
 
-module.exports.gitlabAccess = () =>
+export const gitlabAccess = (): Promise<{ gitlabDomain: string, gitlabToken: string }> =>
   inquirer.prompt([
     input.domain({
       name: 'gitlabDomain',
@@ -32,7 +24,7 @@ module.exports.gitlabAccess = () =>
     input.text({
       name: 'gitlabToken',
       type: 'input',
-      validate: val => !!val.length || 'We need gitlab acces token :(',
+      validate: (val: string) => !!val.length || 'We need gitlab acces token :(',
       message: chalk.yellow('Please provide your Gitlab access token:')
     })
   ]);

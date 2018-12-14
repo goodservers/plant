@@ -1,22 +1,22 @@
-const chalk = require('chalk');
-const { Remote, Repository } = require('nodegit');
-const R = require('ramda');
-const tmp = require('tmp');
-const { spinner } = require('../util');
-const { repositoryName } = require('../prompts/create');
-const gitlabPrompt = require('../prompts/gitlab');
-const server = require('./server');
-const { pairVariables } = require('../prompts/variables');
-const { selectTemplate } = require('../prompts/templates');
-const Git = require('../libs/git');
-const filesystem = require('../libs/filesystem');
-const Github = require('../libs/github');
-const Gitlab = require('../libs/gitlab');
-const Template = require('../libs/template');
+import chalk from 'chalk';
+import { Remote, Repository } from 'nodegit';
+import R from 'ramda';
+import tmp from 'tmp';
+import { spinner } from '../util';
+import { repositoryName } from '../prompts/create';
+import * as gitlabPrompt from '../prompts/gitlab';
+import * as server from './server';
+import { pairVariables } from '../prompts/variables';
+import { selectTemplate } from '../prompts/templates';
+import * as Git from '../libs/git';
+import * as filesystem from '../libs/filesystem';
+import * as Github from '../libs/github';
+import * as Gitlab from '../libs/gitlab';
+import * as Template from '../libs/template';
 
-const tmpDirectory = tmp.dirSync();
+export const tmpDirectory = tmp.dirSync();
 
-module.exports.init = async () => {
+export const init = async () => {
   try {
     const isGit = await Git.isGitRepository('.');
 
@@ -56,7 +56,7 @@ module.exports.init = async () => {
     const serverVariables = await server.getVariablesForServer(
       selectedServer.name
     );
-    console.log('serverVariables', serverVariables);
+    // console.log('serverVariables', serverVariables);
 
     const gitlabRemotes = await Gitlab.getRemotes(repository);
 
@@ -65,11 +65,11 @@ module.exports.init = async () => {
         ? (await gitlabPrompt.selectRightGitlabRemote(
             gitlabRemotes.map(remote => ({ name: remote, value: remote }))
           )).name
-        : R.last(gitlabRemotes);
+        : gitlabRemotes[0];
 
-    // FIXME: get variables
+    // TODO: get variables from .env?
     const registryVariables = {
-      REGISTRY_URL: `${Gitlab.getRegistryUrl()}/${Gitlab.getUserAndProjectName(
+      REGISTRY_URL: `${Gitlab.getRegistryDomain()}/${Gitlab.getUserAndProjectName(
         remoteUrl
       )}`
     };
@@ -95,7 +95,7 @@ module.exports.init = async () => {
     await filesystem.removeFolder(tmpDirectory.name);
 
     const projects = await Gitlab.getProjects(Git.getProjectName(remoteUrl));
-    const projectId = R.last(projects).id;
+    const projectId = projects[0].id;
     await Gitlab.saveOrUpdateVariables(projectId, serverVariables);
 
     // const newGroup = await GitlabAPI.Groups.create({

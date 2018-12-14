@@ -1,32 +1,24 @@
-const Gitlab = require('gitlab').default;
-const Ora = require('ora');
-const chalk = require('chalk');
-const CacheConf = require('./libs/cache-conf');
+import Gitlab from 'gitlab';
+import Ora from 'ora';
+import chalk from 'chalk';
+import CacheConf from './libs/cache-conf';
+import * as Create from './prompts/create';
 
-const config = new CacheConf();
-const spinner = new Ora();
+export const config = new CacheConf({ projectName: 'plant' });
+export const spinner = new Ora();
 // config.delete('gitlabToken');
-const CURRENT_USER = config.get('currentUser');
-const GITLAB_DOMAIN = config.get('gitlabDomain');
-const ACCESS_TOKEN = config.get('gitlabToken');
-const GitlabAPI = new Gitlab({
+export const CURRENT_USER = config.get('currentUser');
+export const GITLAB_DOMAIN = config.get('gitlabDomain');
+export const ACCESS_TOKEN = config.get('gitlabToken');
+export const GitlabAPI = new Gitlab({
   url: `https://${GITLAB_DOMAIN}`,
   token: ACCESS_TOKEN
 });
 
 // /Users/xxx/Library/Preferences/shark-nodejs/config.json
 
-module.exports.config = config;
-
-module.exports.spinner = spinner;
-
-module.exports.CURRENT_USER = CURRENT_USER;
-module.exports.GITLAB_DOMAIN = GITLAB_DOMAIN;
-
-module.exports.GitlabAPI = GitlabAPI;
-
-module.exports.initAccount = async () => {
-  const verifyAccount = async ({ gitlabToken, gitlabDomain }) => {
+export const initAccount = async () => {
+  const verifyAccount = async ({ gitlabToken, gitlabDomain }: { gitlabToken: string, gitlabDomain: string }) => {
     console.log('token,', gitlabToken, gitlabDomain)
     try {
       const api = new Gitlab({
@@ -55,7 +47,6 @@ module.exports.initAccount = async () => {
           `);
     }
   };
-  const Create = require('./prompts/create');
 
   const answers = await Create.gitlabAccess();
 
@@ -63,7 +54,7 @@ module.exports.initAccount = async () => {
   await verifyAccount(answers);
 };
 
-module.exports.callMatchingMethod = (object, method) => {
+export const callMatchingMethod = (object, method) => {
   if (Object.prototype.hasOwnProperty.call(object, method)) {
     object[method]();
   } else if (Object.prototype.hasOwnProperty.call(object, 'init')) {
@@ -73,9 +64,9 @@ module.exports.callMatchingMethod = (object, method) => {
   }
 };
 
-module.exports.calculateCostAndHours = (createdAt, hourlyPrice) => {
-  const createdDate = new Date(createdAt);
-  const totalHours = Math.ceil(Math.abs(Date.now() - createdDate) / 36e5);
-  const totalCost = totalHours * hourlyPrice;
-  return { totalCost, totalHours };
-};
+// export const calculateCostAndHours = (createdAt, hourlyPrice) => {
+//   const createdDate = new Date(createdAt);
+//   const totalHours = Math.ceil(Math.abs(Date.now() - createdDate) / 36e5);
+//   const totalCost = totalHours * hourlyPrice;
+//   return { totalCost, totalHours };
+// };

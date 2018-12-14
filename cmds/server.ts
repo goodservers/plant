@@ -1,11 +1,11 @@
-const inquirer = require('inquirer');
-const chalk = require('chalk');
-const R = require('ramda');
-const { GitlabAPI, spinner, callMatchingMethod } = require('../util');
-const serverPrompt = require('../prompts/server');
-const { convertToSlug, randomNine } = require('../libs/helpers.js');
+import inquirer from 'inquirer';
+import chalk from 'chalk';
+import R from 'ramda';
+import { GitlabAPI, spinner, callMatchingMethod } from '../util';
+import * as serverPrompt from '../prompts/server';
+import { convertToSlug, randomNine } from '../libs/helpers';
 
-const init = async () => {
+export const init = async () => {
   try {
     const answers = await serverPrompt.init();
     callMatchingMethod(module.exports, answers.server);
@@ -14,10 +14,10 @@ const init = async () => {
   }
 };
 
-const SERVER_PREFIX = 'servers';
-const SERVER_VARIABLES = ['DEPLOYMENT_SERVER_IP', 'DEPLOY_SERVER_PRIVATE_KEY'];
+export const SERVER_PREFIX = 'servers';
+export const SERVER_VARIABLES = ['DEPLOYMENT_SERVER_IP', 'DEPLOY_SERVER_PRIVATE_KEY'];
 
-const create = async () => {
+export const create = async () => {
   try {
     const server = await serverPrompt.create();
 
@@ -52,11 +52,11 @@ const create = async () => {
   }
 };
 
-const listOrCreate = async () => {
-  try {
+export const listOrCreate = async (): Promise<{ name: string }> => {
+  // try {
     spinner.start(`Listing servers...`);
 
-    let list = await GitlabAPI.Groups.all({
+    let list: any[] = await GitlabAPI.Groups.all({
       owned: true
     });
 
@@ -73,9 +73,9 @@ const listOrCreate = async () => {
         spinner.warn(`No server to deployment found, please create new.`);
         const newServer = await create();
         list.push(newServer);
-        return new Promise(resolve => resolve({ name: newServer.value }));
+        return new Promise(resolve => resolve({ name: newServer && newServer.value }));
       case 1:
-        const choice = R.last(choices);
+        const choice = choices[0];
         spinner.succeed(`Setting deployment to ${choice.name} server`);
         return new Promise(resolve => resolve({ name: choice.value }));
       default:
@@ -88,20 +88,12 @@ const listOrCreate = async () => {
           }
         ]);
     }
-  } catch (error) {
-    spinner.stop();
-    console.error(error);
-  }
+  // } catch (error) {
+  //   spinner.stop();
+  //   console.error(error);
+  // }
 };
 
-const getVariablesForServer = async groupId =>
+export const getVariablesForServer = async (groupId: string) =>
   GitlabAPI.GroupVariables.all(groupId);
 
-module.exports = {
-  SERVER_PREFIX,
-  SERVER_VARIABLES,
-  init,
-  create,
-  getVariablesForServer,
-  listOrCreate
-};
