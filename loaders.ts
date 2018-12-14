@@ -1,5 +1,5 @@
-const { GitlabAPI, spinner, config } = require('./util');
-const Github = require('./libs/github');
+import { GitlabAPI, spinner, config } from './util';
+import * as Github from './libs/github';
 
 const deleteKey = key => {
   if (config.isExpired(key)) {
@@ -35,7 +35,7 @@ const cachedLoader = async (
       const items = await asyncLoadingFunction();
       spinner.stop();
 
-      config.set(cacheKey, items.map(mappingFunction), {
+      config.setKey(cacheKey, items.map(mappingFunction), {
         maxAge
       });
     }
@@ -48,9 +48,6 @@ const cachedLoader = async (
   }
 };
 
-const loadAvailableTemplates = async () =>
+export const loadAvailableTemplates = async () =>
   cachedLoader('templates', Github.getListOfDirectories, mappingFunction);
 
-module.exports = {
-  loadAvailableTemplates
-};

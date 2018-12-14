@@ -1,15 +1,14 @@
-const updateNotifier = require('update-notifier');
-const server = require('./cmds/server');
-const { init } = require('./cmds/init');
-const deploy = require('./cmds/deploy');
-const { initAccount, callMatchingMethod, config } = require('./util');
-const pkg = require('./package.json');
-const filesystem = require('./libs/filesystem');
+import updateNotifier from 'update-notifier';
+import * as server from './cmds/server';
+// import { init } from './cmds/init';
+import * as deploy from './cmds/deploy';
+import { initAccount, callMatchingMethod, config } from './util';
+import pkg from './package.json';
 
 const notifier = updateNotifier({ pkg });
 
 notifier.notify({ isGlobal: true });
-const main = async argv_ => {
+const main = async (argv_: string[]) => {
   const argv = argv_.slice(2);
 
   const help = `
@@ -49,8 +48,8 @@ const main = async argv_ => {
   }
 };
 
-const handleUnexpected = async err => {
-  const { message } = err;
+const handleUnexpected = async (err: any) => {
+  // const { message } = err;
 
   console.error(`An unexpected error occurred!\n  ${err.stack} ${err.stack}`);
 
@@ -59,9 +58,9 @@ const handleUnexpected = async err => {
 
 main(process.argv)
   .then(exitCode => {
-    process.emit('nowExit');
-    process.on('beforeExit', () => {
-      process.exit(exitCode);
-    });
+    // process.emit('nowExit');
+    // process.on('beforeExit', () => {
+    //   process.exit(exitCode);
+    // });
   })
   .catch(handleUnexpected);

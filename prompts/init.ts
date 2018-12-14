@@ -1,7 +1,7 @@
-'use strict';
-const inquirer = require('inquirer');
 
-module.exports.init = () => {
+import inquirer from 'inquirer';
+
+export const init = (): Promise<{ init: string }> => {
   const questions = [
     {
       type: 'list',
