@@ -1,9 +1,9 @@
 const inquirer = require('inquirer');
 const chalk = require('chalk');
 const R = require('ramda');
-const { config, GitlabAPI, spinner, callMatchingMethod } = require('../util');
+const { GitlabAPI, spinner, callMatchingMethod } = require('../util');
 const serverPrompt = require('../prompts/server');
-const { convertToSlug, hashCode } = require('../libs/helpers.js');
+const { convertToSlug, randomNine } = require('../libs/helpers.js');
 
 const init = async () => {
   try {
@@ -15,7 +15,7 @@ const init = async () => {
 };
 
 const SERVER_PREFIX = 'servers';
-const SERVER_VARIABLES = ['DEPLOYMENT_SERVER_IP', 'DEPLOY_SERVER_PRIVATE_KEY']
+const SERVER_VARIABLES = ['DEPLOYMENT_SERVER_IP', 'DEPLOY_SERVER_PRIVATE_KEY'];
 
 const create = async () => {
   try {
@@ -23,10 +23,9 @@ const create = async () => {
 
     spinner.start(`Saving ${server.name}...`);
 
-    const currentUser = await GitlabAPI.Users.current();
     const newGroup = await GitlabAPI.Groups.create({
       name: server.name,
-      path: SERVER_PREFIX + '-' + convertToSlug(server.name) + '-' + randomNine()
+      path: `${SERVER_PREFIX}-${convertToSlug(server.name)}-${randomNine()}`
     });
 
     await GitlabAPI.GroupVariables.create(newGroup.id, {
@@ -42,17 +41,22 @@ const create = async () => {
     });
 
     spinner.succeed(`${chalk.bold(server.name)} is saved. 🎉`);
+
+    return {
+      name: server.name,
+      value: newGroup.id
+    };
   } catch (error) {
     spinner.stop();
     console.error(error);
   }
 };
 
-const list = async () => {
+const listOrCreate = async () => {
   try {
     spinner.start(`Listing servers...`);
 
-    const list = await GitlabAPI.Groups.all({
+    let list = await GitlabAPI.Groups.all({
       owned: true
     });
 
@@ -63,26 +67,35 @@ const list = async () => {
         value: server.id
       }));
 
-    const questions = [
-      {
-        type: 'list',
-        name: 'name',
-        message: 'Choose server to deploy',
-        choices
-      }
-    ];
     spinner.stop();
-
-    return inquirer.prompt(questions);
+    switch (choices.length) {
+      case 0:
+        spinner.warn(`No server to deployment found, please create new.`);
+        const newServer = await create();
+        list.push(newServer);
+        return new Promise(resolve => resolve({ name: newServer.value }));
+      case 1:
+        const choice = R.last(choices);
+        spinner.succeed(`Setting deployment to ${choice.name} server`);
+        return new Promise(resolve => resolve({ name: choice.value }));
+      default:
+        return inquirer.prompt([
+          {
+            type: 'list',
+            name: 'name',
+            message: 'Choose server to deploy',
+            choices
+          }
+        ]);
+    }
   } catch (error) {
     spinner.stop();
     console.error(error);
   }
 };
 
-const getVariablesForServer = async (groupId) => {
-  return await GitlabAPI.GroupVariables.all(groupId)
-}
+const getVariablesForServer = async groupId =>
+  GitlabAPI.GroupVariables.all(groupId);
 
 module.exports = {
   SERVER_PREFIX,
@@ -90,5 +103,5 @@ module.exports = {
   init,
   create,
   getVariablesForServer,
-  list
+  listOrCreate
 };

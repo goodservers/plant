@@ -1,8 +1,7 @@
-'use strict';
 const Gitlab = require('gitlab').default;
+const Ora = require('ora');
 const chalk = require('chalk');
 const CacheConf = require('./libs/cache-conf');
-const Ora = require('ora');
 
 const config = new CacheConf();
 const spinner = new Ora();

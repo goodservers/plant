@@ -10,7 +10,7 @@ npm install -g @goodservers/plant
 ## Usage
 To get started
 ```sh
-plant-cli
+plant
 ```
 It will ask for Gitlab Personal Access Token for the first time and then you can perform tasks interactively.
 
