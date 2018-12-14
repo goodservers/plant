@@ -1,7 +1,7 @@
 const updateNotifier = require('update-notifier');
-const Server = require('./cmds/server');
+const server = require('./cmds/server');
 const { init } = require('./cmds/init');
-const Deploy = require('./cmds/deploy');
+const deploy = require('./cmds/deploy');
 const { initAccount, callMatchingMethod, config } = require('./util');
 const pkg = require('./package.json');
 const filesystem = require('./libs/filesystem');
@@ -27,10 +27,10 @@ const main = async argv_ => {
   if (config.has('gitlabToken')) {
     switch (argv[0]) {
       case 'deploy':
-        callMatchingMethod(Deploy, argv[1]);
+        callMatchingMethod(deploy, argv[1]);
         break;
       case 'server':
-        callMatchingMethod(Server, argv[1]);
+        callMatchingMethod(server, argv[1]);
         break;
       case '-v':
       case '--version':
@@ -41,20 +41,18 @@ const main = async argv_ => {
         console.log(help);
         break;
       default:
-        Deploy.init();
+        deploy.init();
         break;
     }
   } else {
     initAccount();
   }
-}
+};
 
 const handleUnexpected = async err => {
   const { message } = err;
 
-  console.error(
-    error(`An unexpected error occurred!\n  ${err.stack} ${err.stack}`)
-  );
+  console.error(`An unexpected error occurred!\n  ${err.stack} ${err.stack}`);
 
   process.exit(1);
 };

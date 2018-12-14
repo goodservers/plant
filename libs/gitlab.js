@@ -1,11 +1,6 @@
-const Git = require('../libs/git');
 const R = require('ramda');
-const {
-  GitlabAPI,
-  spinner,
-  callMatchingMethod,
-  GITLAB_DOMAIN
-} = require('../util');
+const Git = require('./git');
+const { GitlabAPI, GITLAB_DOMAIN } = require('../util');
 
 const createRepository = (name, ...others) =>
   GitlabAPI.Projects.create({
@@ -26,18 +21,54 @@ const getUserAndProjectName = url => {
 };
 
 const getProjects = async (search, ...others) =>
-  await GitlabAPI.Projects.all({ owned: true, search, others });
+  GitlabAPI.Projects.all({ owned: true, search, others });
 
 const getRemotes = async repository => {
   const remotes = await Git.getGitRemotes(repository);
   return remotes.filter(remoteName => remoteName.includes(GITLAB_DOMAIN));
 };
 
-const saveVariables = async (projectId, variables) =>
+const objFromListWith = R.curry((fn, list) =>
+  R.chain(R.zipObj, R.map(fn))(list)
+);
+
+const getVariablesKeys = variables =>
   R.pipe(
-    R.map(variable => GitlabAPI.ProjectVariables.create(projectId, variable)),
+    R.map(R.pick(['key'])),
+    R.map(R.values),
+    R.flatten
+  )(variables);
+
+const saveOrUpdateVariables = async (projectId, variables) => {
+  const keyVariables = objFromListWith(R.prop('key'), variables);
+
+  const usedVariablesKeys = getVariablesKeys(
+    await GitlabAPI.ProjectVariables.all(projectId)
+  );
+
+  return R.pipe(
+    getVariablesKeys,
+    R.applySpec({
+      toCreate: R.pipe(
+        R.filter(key => !usedVariablesKeys.includes(key)),
+        R.map(key =>
+          GitlabAPI.ProjectVariables.create(projectId, keyVariables[key])
+        )
+      ),
+      toUpdate: R.pipe(
+        R.filter(key => usedVariablesKeys.includes(key)),
+        R.map(key =>
+          GitlabAPI.ProjectVariables.edit(projectId, key, {
+            value: keyVariables[key].value
+          })
+        )
+      )
+    }),
+    R.map(R.values),
+    R.flatten,
     Promise.all.bind(Promise)
   )(variables);
+};
 
 module.exports = {
   createRepository,
@@ -46,5 +77,5 @@ module.exports = {
   getRegistryUrl,
   getUserAndProjectName,
   getProjects,
-  saveVariables
+  saveOrUpdateVariables
 };
