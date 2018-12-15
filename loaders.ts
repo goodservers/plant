@@ -1,53 +1,55 @@
-import { GitlabAPI, spinner, config } from './util';
-import * as Github from './libs/github';
+import * as Github from './libs/github'
+import { Choice } from './prompts/inputs'
+import { config, spinner } from './util'
 
-const deleteKey = key => {
+const deleteKey = (key: string) => {
   if (config.isExpired(key)) {
-    config.delete(key);
+    config.delete(key)
   }
-};
+}
 
-const checkGithubApiLimit = async spinner => {
-  const limit = await Github.getApiLimit();
+const checkGithubApiLimit = async (spinner) => {
+  const limit = await Github.getApiLimit()
   if (limit === 0) {
-    spinner.fail('Github API rate limit was exceeded, please wait until:');
+    spinner.fail('Github API rate limit was exceeded, please wait until:')
   }
-};
+}
 
-const mappingFunction = item => ({ name: item, value: item });
+const stringMapFunction = (item: string) => ({ name: item, value: item })
 
 const cachedLoader = async (
-  cacheKey,
-  asyncLoadingFunction,
-  mappingFunction,
-  maxAge = 8640000
+  cacheKey: string,
+  asyncLoadingFunction: () => Promise<any[]>,
+  mappingFunction: (x: any) => Choice,
+  maxAge = 8640000,
 ) => {
-  let choices = [];
+  let choices: any[] = []
 
-  deleteKey(cacheKey);
+  deleteKey(cacheKey)
   try {
-    spinner.start(`Loading available ${cacheKey}...`);
+    spinner.start(`Loading available ${cacheKey}...`)
 
     if (config.has(cacheKey)) {
-      choices = config.get(cacheKey);
-      spinner.stop();
+      choices = config.get(cacheKey) as Choice[]
+      spinner.stop()
     } else {
-      const items = await asyncLoadingFunction();
-      spinner.stop();
+      const input = await asyncLoadingFunction()
+      spinner.stop()
 
-      config.setKey(cacheKey, items.map(mappingFunction), {
-        maxAge
-      });
+      choices = input.map(mappingFunction)
+
+      config.setKey(cacheKey, choices, {
+        maxAge,
+      })
     }
 
-    return choices;
+    return choices
   } catch (error) {
-    spinner.stop();
-    checkGithubApiLimit(spinner);
-    spinner.fail(error);
+    spinner.stop()
+    checkGithubApiLimit(spinner)
+    spinner.fail(error)
   }
-};
+}
 
 export const loadAvailableTemplates = async () =>
-  cachedLoader('templates', Github.getListOfDirectories, mappingFunction);
-
+  cachedLoader('templates', Github.getListOfDirectories, stringMapFunction)

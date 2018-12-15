@@ -1,5 +1,4 @@
-
-import inquirer from 'inquirer';
+import inquirer from 'inquirer'
 
 export const init = (): Promise<{ init: string }> => {
   const questions = [
@@ -10,10 +9,10 @@ export const init = (): Promise<{ init: string }> => {
       choices: [
         { name: 'Init project to deploy', value: 'deploy' },
         { name: 'Init server', value: 'server' },
-        { name: 'Exit', value: 'exit' }
-      ]
-    }
-  ];
+        { name: 'Exit', value: 'exit' },
+      ],
+    },
+  ]
 
-  return inquirer.prompt(questions);
-};
+  return inquirer.prompt(questions)
+}

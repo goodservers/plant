@@ -1,7 +1,7 @@
 {
   "name": "@goodservers/plant",
   "preferGlobal": true,
-  "version": "1.0.0-alpha.17",
+  "version": "1.0.0-alpha.18",
   "description": "A CLI to easily deploy your project to Gitlab and your VPS.",
   "main": "plant.js",
   "author": "Tom Wagner <tomas.wagner@gmail.com>",
@@ -17,7 +17,8 @@
     "build": "ncc build ./plant.ts",
     "bundle": "pkg bin/plant.js -c package.json -o packed/plant --options no-warnings",
     "postinstall": "node download/install.js",
-    "prepublishOnly": "yarn build-download && cp /dev/null download/dist/plant"
+    "prepublishOnly": "yarn build-download && cp /dev/null download/dist/plant",
+    "prettier:fix": "./node_modules/prettier/bin-prettier.js --write \"**/*.{js,ts,tsx}\""
   },
   "bin": {
     "plant": "download/dist/plant"
@@ -37,41 +38,6 @@
       "node10-win-x64"
     ]
   },
-  "eslintConfig": {
-    "extends": [
-      "airbnb",
-      "prettier"
-    ],
-    "rules": {
-      "import/no-dynamic-require": 0,
-      "global-require": 0,
-      "import/no-duplicates": 0,
-      "guard-for-in": 0,
-      "no-restricted-globals": 0,
-      "import/prefer-default-export": 0,
-      "no-loop-func": 0,
-      "prefer-const": 0,
-      "no-nested-ternary": 0,
-      "class-methods-use-this": 0,
-      "no-continue": 0,
-      "no-control-regex": 0,
-      "no-empty": 0,
-      "camelcase": 0,
-      "func-names": 0,
-      "no-shadow": 0,
-      "no-plusplus": 0,
-      "no-param-reassign": 0,
-      "consistent-return": 0,
-      "prefer-destructuring": 0,
-      "no-bitwise": 0,
-      "no-console": 0,
-      "no-use-before-define": 0,
-      "no-restricted-syntax": 0,
-      "no-await-in-loop": 0,
-      "no-underscore-dangle": 0,
-      "import/no-extraneous-dependencies": 0
-    }
-  },
   "eslintIgnore": [
     "download",
     "dist",
@@ -82,17 +48,15 @@
   "keywords": [
     "cli",
     "plant",
-    "nodejs"
+    "deploy.guide"
   ],
   "dependencies": {
-    "@types/conf": "^2.1.0",
     "chalk": "^2.4.1",
     "conf": "^2.1.0",
     "fs-extra": "^7.0.1",
-    "gitlab": "^4.2.7",
+    "gitlab": "^4.3.0",
     "globby": "^8.0.1",
     "inquirer": "^6.0.0",
-    "is-ci": "^2.0.0",
     "isomorphic-fetch": "^2.2.1",
     "mustache": "^3.0.1",
     "nodegit": "^0.23.0",
@@ -103,8 +67,8 @@
     "update-notifier": "^2.5.0"
   },
   "devDependencies": {
+    "@types/conf": "^2.1.0",
     "@types/fs-extra": "^5.0.4",
-    "@types/gitlab": "^2.0.0",
     "@types/globby": "^8.0.0",
     "@types/inquirer": "^0.0.43",
     "@types/isomorphic-fetch": "^0.0.34",
@@ -112,23 +76,18 @@
     "@types/node": "^10.12.15",
     "@types/nodegit": "^0.22.5",
     "@types/ora": "^1.3.4",
-    "@types/ramda": "^0.25.43",
+    "@types/ramda": "^0.25.44",
     "@types/tmp": "^0.0.33",
     "@zeit/ncc": "^0.5.5",
     "async-retry": "^1.2.3",
     "death": "^1.1.0",
-    "eslint": "5.3.0",
-    "eslint-config-airbnb": "17.1.0",
-    "eslint-config-prettier": "3.3.0",
-    "eslint-import-resolver-typescript": "1.1.1",
-    "eslint-plugin-import": "2.14.0",
-    "eslint-plugin-jsx-a11y": "6.1.1",
-    "eslint-plugin-react": "7.11.0",
-    "eslint-plugin-typescript": "0.14.0",
     "jest": "^23.6.0",
     "pkg": "^4.3.5",
-    "semantic-release": "^15.9.12",
+    "prettier": "^1.15.3",
     "ts-node": "^7.0.1",
+    "tslint": "^5.11.0",
+    "tslint-config-prettier": "^1.17.0",
+    "tslint-eslint-rules": "^5.4.0",
     "typescript": "^3.2.2",
     "which-promise": "^1.0.0"
   }

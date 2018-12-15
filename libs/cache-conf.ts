@@ -1,89 +1,90 @@
-import path from 'path';
-import Conf from 'conf';
+import Conf from 'conf'
+import path from 'path'
 
-export const parentDir = path.dirname(process.cwd());
+export const parentDir = path.dirname(process.cwd())
 
 interface ConfOptions {
-  projectName?: string,
-  version?: number,
+  projectName?: string
+  version?: number
 }
 
 interface Options {
-  ignoreMaxAge?: boolean,
-  maxAge?: number,
+  ignoreMaxAge?: boolean
+  maxAge?: number
 }
 
 export default class CacheConf extends Conf {
-  version?: number;
+  version?: number
 
-	constructor(options: ConfOptions) {
-		options = Object.assign({
-			projectName: 'plant'
-		}, options);
+  constructor(options: ConfOptions) {
+    options = Object.assign(
+      {
+        projectName: 'plant',
+      },
+      options,
+    )
 
-		super(options);
+    super(options)
 
-		this.version = options.version;
-	}
+    this.version = options.version
+  }
 
-	get(key: string, options: Options = {}) {
+  get(key: string, options: Options = {}) {
+    if (options.ignoreMaxAge !== true && this.isExpired(key)) {
+      super.delete(key)
+      return
+    }
 
-		if (options.ignoreMaxAge !== true && this.isExpired(key)) {
-			super.delete(key);
-			return;
-		}
+    const item = super.get(key)
 
-		const item = super.get(key);
+    return item && item.data
+  }
 
-		return item && item.data;
-	}
+  setKey(key: string, val: any, opts: Options = {}) {
+    if (typeof key === 'object') {
+      opts = val || {}
 
-	setKey(key: string, val: any, opts: Options = {}) {
+      const timestamp = typeof opts.maxAge === 'number' ? Date.now() + opts.maxAge : undefined
 
-		if (typeof key === 'object') {
-			opts = val || {};
+      Object.keys(key).forEach((k) => {
+        super.set(k, {
+          timestamp,
+          version: this.version,
+          data: key[k],
+        })
+      })
+    } else {
+      super.set(key, {
+        timestamp: typeof opts.maxAge === 'number' ? Date.now() + opts.maxAge : undefined,
+        version: this.version,
+        data: val,
+      })
+    }
+  }
 
-			const timestamp = typeof opts.maxAge === 'number' ? Date.now() + opts.maxAge : undefined;
+  has(key: string) {
+    if (!super.has(key)) {
+      return false
+    }
 
-			Object.keys(key).forEach(k => {
-				super.set(k, {
-					timestamp,
-					version: this.version,
-					data: key[k]
-				});
-			});
-		} else {
-			super.set(key, {
-				timestamp: typeof opts.maxAge === 'number' ? Date.now() + opts.maxAge : undefined,
-				version: this.version,
-				data: val
-			});
-		}
-	}
+    if (this.isExpired(key)) {
+      super.delete(key)
+      return false
+    }
 
-	has(key: string) {
-		if (!super.has(key)) {
-			return false;
-		}
+    return true
+  }
 
-		if (this.isExpired(key)) {
-			super.delete(key);
-			return false;
-		}
+  isExpired(key: string) {
+    const item = super.get(key)
 
-		return true;
-	}
+    if (!item) {
+      return false
+    }
 
-	isExpired(key: string) {
-		const item = super.get(key);
+    const invalidTimestamp = item.timestamp && item.timestamp < Date.now()
+    const invalidVersion = item.version !== this.version
 
-		if (!item) {
-			return false;
-		}
-
-		const invalidTimestamp = item.timestamp && item.timestamp < Date.now();
-		const invalidVersion = item.version !== this.version;
-
-		return Boolean(invalidTimestamp || invalidVersion);
-	}
+    return Boolean(invalidTimestamp || invalidVersion)
+  }
 }

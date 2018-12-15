@@ -1,15 +1,14 @@
-import updateNotifier from 'update-notifier';
-import * as server from './cmds/server';
-// import { init } from './cmds/init';
-import * as deploy from './cmds/deploy';
-import { initAccount, callMatchingMethod, config } from './util';
-import pkg from './package.json';
+import updateNotifier from 'update-notifier'
+import * as deploy from './cmds/deploy'
+import * as server from './cmds/server'
+import pkg from './package.json'
+import { callMatchingMethod, config, initAccount } from './util'
 
-const notifier = updateNotifier({ pkg });
+const notifier = updateNotifier({ pkg })
 
-notifier.notify({ isGlobal: true });
+notifier.notify({ isGlobal: true })
 const main = async (argv_: string[]) => {
-  const argv = argv_.slice(2);
+  const argv = argv_.slice(2)
 
   const help = `
   All operations can be performed interactively by just typing 'plant'
@@ -21,46 +20,46 @@ const main = async (argv_: string[]) => {
 
   $ plant
   -> Perform operations interactively
-  `;
+  `
 
   if (config.has('gitlabToken')) {
     switch (argv[0]) {
       case 'deploy':
-        callMatchingMethod(deploy, argv[1]);
-        break;
+        callMatchingMethod(deploy, argv[1])
+        break
       case 'server':
-        callMatchingMethod(server, argv[1]);
-        break;
+        callMatchingMethod(server, argv[1])
+        break
       case '-v':
       case '--version':
-        console.log(pkg.version);
-        break;
+        console.log(pkg.version)
+        break
       case '-h':
       case '--help':
-        console.log(help);
-        break;
+        console.log(help)
+        break
       default:
-        deploy.init();
-        break;
+        deploy.init()
+        break
     }
   } else {
-    initAccount();
+    initAccount()
   }
-};
+}
 
 const handleUnexpected = async (err: any) => {
   // const { message } = err;
 
-  console.error(`An unexpected error occurred!\n  ${err.stack} ${err.stack}`);
+  console.error(`An unexpected error occurred!\n  ${err.stack} ${err.stack}`)
 
-  process.exit(1);
-};
+  process.exit(1)
+}
 
 main(process.argv)
-  .then(exitCode => {
+  .then((exitCode) => {
     // process.emit('nowExit');
     // process.on('beforeExit', () => {
     //   process.exit(exitCode);
     // });
   })
-  .catch(handleUnexpected);
+  .catch(handleUnexpected)

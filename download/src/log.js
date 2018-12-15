@@ -13,7 +13,7 @@ export function enableProgress(text) {
     width: 20,
     complete: '=',
     incomplete: ' ',
-    total: 100
+    total: 100,
   })
 }
 
