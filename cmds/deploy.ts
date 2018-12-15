@@ -13,6 +13,7 @@ import { selectTemplate } from '../prompts/templates'
 import { pairVariables } from '../prompts/variables'
 import { spinner } from '../util'
 import * as server from './server'
+import { objFromListWith } from '../libs/helpers';
 
 export const tmpDirectory = tmp.dirSync()
 
@@ -67,7 +68,8 @@ export const init = async () => {
     const neededTemplateVariables = templateVariables.filter(
       (variable) => ![...server.SERVER_VARIABLES, 'REGISTRY_URL'].includes(variable),
     )
-    const userVariables = await pairVariables(neededTemplateVariables)
+    const keyVariables: { [key: string]: server.GitlabVariable } = objFromListWith(R.prop('key'), serverVariables)
+    const userVariables = await pairVariables(neededTemplateVariables, { serverDomainOrIp: keyVariables.DEPLOYMENT_SERVER_IP.value })
 
     await template.writeTemplateVariables(
       `${tmpDirectory.name}/${selectedTemplate.name}`,

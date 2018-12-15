@@ -1,7 +1,8 @@
 import { Repository } from 'nodegit'
 import R from 'ramda'
 import { GITLAB_DOMAIN, GitlabAPI } from '../util'
-import * as Git from './git'
+import * as git from './git'
+import { objFromListWith } from './helpers'
 
 export const createRepository = (name: string, ...others: any) =>
   GitlabAPI.Projects.create({
@@ -26,13 +27,9 @@ export const getProjects = async (search: string, ...others: any) =>
   GitlabAPI.Projects.all({ owned: true, search, others })
 
 export const getRemotes = async (repository: Repository) => {
-  const remotes = await Git.getGitRemotes(repository)
+  const remotes = await git.getGitRemotes(repository)
   return remotes.filter((remoteName) => remoteName.includes(GITLAB_DOMAIN))
 }
-export const objFromListWith = R.curry((fn: any, list: any[]) =>
-  // @ts-ignore FIXME:
-  R.chain(R.zipObj, R.map(fn))(list),
-)
 
 export const getVariablesKeys = (variables: Variable[]): string[] =>
   R.pipe(
@@ -67,7 +64,6 @@ export const saveOrUpdateVariables = async (projectId: number, variables: Variab
         ),
       ),
     }) as any,
-    R.tap(console.log),
     R.map(R.values),
     R.flatten,
     Promise.all.bind(Promise),

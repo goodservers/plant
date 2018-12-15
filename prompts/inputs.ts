@@ -6,6 +6,19 @@ export interface Choice {
   value: string
 }
 
+const port = (x: string, message = 'Please enter valid port number') => {
+  const input = parseInt(x, 10)
+  return (Number.isInteger(input) && input > 0 && input < 65536) || message
+}
+
+const required = (x: string, message = 'Required input') => x.length > 0 || message
+
+// TODO: add more validators, combine them
+export const validator = {
+  required,
+  port,
+}
+
 export const text = (options: any) =>
   Object.assign(
     {
@@ -24,18 +37,15 @@ export const slug = (options: any) =>
     options,
   )
 
-export const domain = (options: any) =>
-  Object.assign(
-    {
-      type: 'input',
-      name: 'domain',
-      message: 'Enter server\'s domain name:',
-      validate: (val: string) =>
-        !!val.length || /^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$/.test(val) || 'Please enter a valid domain name',
-      filter: (input: string) => input.toLowerCase(),
-    },
-    options,
-  )
+export const domain = (options: any) => ({
+  type: 'input',
+  name: 'domain',
+  message: 'Enter server\'s domain name:',
+  validate: (val: string) =>
+    !!val.length || /^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$/.test(val) || 'Please enter a valid domain name',
+  filter: (input: string) => input.toLowerCase(),
+  ...options,
+})
 
 const emailRegex = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
 

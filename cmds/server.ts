@@ -2,7 +2,7 @@ import chalk from 'chalk'
 import inquirer from 'inquirer'
 import { convertToSlug, randomNine } from '../libs/helpers'
 import * as serverPrompt from '../prompts/server'
-import { callMatchingMethod, GitlabAPI, spinner,  } from '../util'
+import { callMatchingMethod, GitlabAPI, spinner } from '../util'
 
 export const init = async () => {
   try {
@@ -93,4 +93,13 @@ export const listOrCreate = async (): Promise<{ name: string }> => {
   // }
 }
 
-export const getVariablesForServer = async (groupId: string) => GitlabAPI.GroupVariables.all(groupId)
+export interface GitlabVariable {
+  key: string
+  value: string
+  id?: number | string
+  protected?: boolean
+  environment_scope?: string
+}
+
+export const getVariablesForServer = async (groupId: string): Promise<GitlabVariable[]> =>
+  GitlabAPI.GroupVariables.all(groupId)
