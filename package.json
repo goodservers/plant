@@ -3,6 +3,7 @@
   "preferGlobal": true,
   "version": "1.0.0-alpha.18",
   "description": "A CLI to easily deploy your project to Gitlab and your VPS.",
+  "repository": "goodservers/plant",
   "main": "plant.js",
   "author": "Tom Wagner <tomas.wagner@gmail.com>",
   "license": "MIT",
