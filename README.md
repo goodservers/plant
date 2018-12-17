@@ -15,8 +15,9 @@ plant
 It will ask for Gitlab Personal Access Token for the first time and then you can perform tasks interactively.
 
 ## Todo
-- [x] Typescript
+- [x] Increase Typescript coverage
 - [ ] Deploy db instances, create users
+- [ ] Provide to setup user variables from .env to Gitlab project variables
 - [ ] Tests
 
 ## License

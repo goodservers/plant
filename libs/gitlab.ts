@@ -1,8 +1,9 @@
-import { Repository } from 'nodegit'
+import { Remote, Repository } from 'nodegit'
 import R from 'ramda'
+import { TemplateVariables } from '../cmds/server'
 import { GITLAB_DOMAIN, GitlabAPI } from '../util'
 import * as git from './git'
-import { objFromListWith } from './helpers'
+import { CurrentUser, Project, SSHKey, Status, Variable } from './gitlab.types'
 
 export const createRepository = (name: string, ...others: any) =>
   GitlabAPI.Projects.create({
@@ -23,12 +24,14 @@ export const getUserAndProjectName = (url: string) => {
   return found && found[1]
 }
 
-export const getProjects = async (search: string, ...others: any) =>
+export const getProjects = async (search: string, ...others: any): Promise<Project[]> =>
   GitlabAPI.Projects.all({ owned: true, search, others })
 
-export const getRemotes = async (repository: Repository) => {
+export const isGitlabRemote = (remote: Remote): boolean => remote.url().includes(GITLAB_DOMAIN)
+
+export const getRemotes = async (repository: Repository): Promise<Remote[]> => {
   const remotes = await git.getGitRemotes(repository)
-  return remotes.filter((remoteName) => remoteName.includes(GITLAB_DOMAIN))
+  return remotes.filter(isGitlabRemote)
 }
 
 export const getVariablesKeys = (variables: Variable[]): string[] =>
@@ -38,28 +41,21 @@ export const getVariablesKeys = (variables: Variable[]): string[] =>
     R.flatten,
   )(variables) as any
 
-interface Variable {
-  key: string
-  value: string
-}
-
-export const saveOrUpdateVariables = async (projectId: number, variables: Variable[]) => {
-  const keyVariables = objFromListWith(R.prop('key'), variables)
-
+export const saveOrUpdateVariables = async (projectId: number, variables: TemplateVariables) => {
   const usedVariablesKeys = getVariablesKeys(await GitlabAPI.ProjectVariables.all(projectId))
 
   return R.pipe(
-    getVariablesKeys,
+    Object.keys,
     R.applySpec({
       toCreate: R.pipe(
         R.filter((key: string) => !usedVariablesKeys.includes(key)) as any,
-        R.map((key) => GitlabAPI.ProjectVariables.create(projectId, keyVariables[key])),
+        R.map((key: string) => GitlabAPI.ProjectVariables.create(projectId, variables[key])),
       ),
       toUpdate: R.pipe(
         R.filter((key: string) => usedVariablesKeys.includes(key)) as any,
-        R.map((key) =>
+        R.map((key: string) =>
           GitlabAPI.ProjectVariables.edit(projectId, key, {
-            value: keyVariables[key].value,
+            value: variables[key],
           }),
         ),
       ),
@@ -69,3 +65,46 @@ export const saveOrUpdateVariables = async (projectId: number, variables: Variab
     Promise.all.bind(Promise),
   )(variables)
 }
+
+export const waitUntilPipelineStatus = async (
+  projectId: number,
+  sha1: string,
+  firstStatus: (status: Status) => void,
+  maxRetry = 30,
+  timeout = 1000,
+): Promise<boolean> => {
+  let count = 0
+
+  return new Promise((resolve, reject) => {
+    const retry = async (maxRetry: number, timeout: number) => {
+      const status: Status[] = await GitlabAPI.Commits.status(projectId, sha1)
+
+      if (count === 0) {
+        firstStatus(status[0])
+      }
+
+      const allFinished = status.every((item: Status) => item.status === 'success')
+      const someError = status.filter((item: Status) => item.status === 'failed')
+
+      if (someError) {
+        reject(someError[0].id)
+        return
+      }
+
+      if (allFinished) {
+        console.log(`OMG, ${projectId} is alive!, status code: 'success'`)
+        resolve(true)
+      } else if (count++ < maxRetry) {
+        return setTimeout(() => {
+          retry(maxRetry, timeout)
+        }, timeout)
+      }
+    }
+    retry(maxRetry, timeout)
+  })
+}
+
+export const getUserSSHKeys = async (currentUser: CurrentUser): Promise<SSHKey[]> => GitlabAPI.UserKeys.all(currentUser)
+
+export const hasUserSomeSSHKeys = async (currentUser: CurrentUser): Promise<boolean> =>
+  (await GitlabAPI.UserKeys.all(currentUser)).some(R.identity)
