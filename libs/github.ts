@@ -1,6 +1,7 @@
 import fs from 'fs-extra'
 import path from 'path'
 import R from 'ramda'
+import { FilePath } from '../types';
 import { fetchJson, fetchText } from './fetch'
 
 export const REPO = 'goodservers/docker-apps'
@@ -49,7 +50,7 @@ export const getRepositoryFiles = async (): Promise<GithubFile[]> => {
   return contents.tree
 }
 
-export const getTemplateFiles = async (path = '') => {
+export const getTemplateFiles = async (path = ''): Promise<GithubFile[]> => {
   const repoFiles = await getRepositoryFiles()
 
   return R.pipe(
@@ -63,12 +64,18 @@ export const getTemplateFiles = async (path = '') => {
   )(repoFiles)
 }
 
-export const downloadTemplateFiles = (directory: string) => async (dirContent: GithubFile[]) =>
-  R.pipe(
+export const downloadTemplateFiles = (directory: string) => async (dirContent: GithubFile[]): Promise<FilePath[]> => {
+  const writtenFiles: FilePath[] = []
+
+  await R.pipe(
     R.map(async (item: GithubFile) => {
       const content = await fetchText(item.download)
       const filePath = path.resolve(directory, item.path)
+      writtenFiles.push(filePath)
       return fs.outputFile(filePath, content)
     }),
     Promise.all.bind(Promise),
   )(dirContent)
+  return writtenFiles;
+}
+

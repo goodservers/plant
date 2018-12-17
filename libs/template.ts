@@ -2,8 +2,10 @@ import fs from 'fs-extra'
 import globby from 'globby'
 import mustache from 'mustache'
 import R from 'ramda'
+import { TemplateVariables } from '../cmds/server'
+import { filters } from '../prompts/inputs'
 
-export const _getTemplateVariables = (checkedToken: string) => (template: string) => {
+export const _getTemplateVariabless = (checkedToken: string) => (template: string) => {
   const tokens = mustache.parse(template)
 
   return R.pipe(
@@ -15,15 +17,15 @@ export const _getTemplateVariables = (checkedToken: string) => (template: string
   )(tokens) as any
 }
 
-export const getRequiredVariables = _getTemplateVariables('name')
-export const getOptionalVariables = _getTemplateVariables('#')
+export const getRequiredVariables = _getTemplateVariabless('name')
+export const getOptionalVariables = _getTemplateVariabless('#')
 
 export const getFilesFromDirectory = async (directory: string) =>
   globby([`${directory}/**/.*`, `${directory}/**/*`, `${directory}/.deploy/**/*`], {
     expandDirectories: true,
   })
 
-export const getTemplateVariables = async (directory: string) => {
+export const getTemplateVariabless = async (directory: string) => {
   const files = await getFilesFromDirectory(directory)
   const filesP = (await R.pipe(
     R.map(async (filePath: string) => {
@@ -39,18 +41,35 @@ export const getTemplateVariables = async (directory: string) => {
 export const _writeTemplateVariables = async (
   path: string,
   template: string,
-  variables: { [key: string]: string },
+  variables: TemplateVariablesNull,
 ): Promise<void> => {
   const finalTemplate = mustache.render(template, variables)
   return fs.outputFile(path, finalTemplate)
 }
 
-export const writeTemplateVariables = async (directory: string, variables: { [key: string]: string }) => {
+export interface InputVariable {
+  key: string
+  value: string
+  protected?: boolean
+}
+export interface TemplateVariablesNull {
+  [key: string]: string | null
+}
+
+const emptyToNullVariable = (variables: TemplateVariables): TemplateVariablesNull => {
+  const variablesWithNull: TemplateVariablesNull = {}
+  Object.keys(variables).map((variable) => (variablesWithNull[variable] = filters.trimOrNull(variables[variable])))
+  return variablesWithNull
+}
+
+export const writeTemplateVariables = async (directory: string, variables: TemplateVariables) => {
   const filePaths = await getFilesFromDirectory(directory)
+  const variablesWithNull = emptyToNullVariable(variables)
+
   return await R.pipe(
     R.map(async (filePath: string) => {
       const template = await fs.readFile(filePath, 'utf8')
-      return _writeTemplateVariables(filePath, template, variables)
+      return _writeTemplateVariables(filePath, template, variablesWithNull)
     }),
     Promise.all.bind(Promise),
   )(filePaths)

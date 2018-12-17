@@ -6,16 +6,17 @@ import * as filesystem from '../libs/filesystem'
 import * as git from '../libs/git'
 import * as github from '../libs/github'
 import * as gitlab from '../libs/gitlab'
+import { Status } from '../libs/gitlab.types'
 import * as template from '../libs/template'
-import { repositoryName } from '../prompts/create'
+import { confirmGitCommitAndPush, repositoryName, selectGitlabProject } from '../prompts/create'
 import * as gitlabPrompt from '../prompts/gitlab'
 import { selectTemplate } from '../prompts/templates'
 import { pairVariables } from '../prompts/variables'
-import { spinner } from '../util'
+import { CURRENT_USER, GITLAB_DOMAIN, spinner } from '../util'
 import * as server from './server'
-import { objFromListWith } from '../libs/helpers';
 
 export const tmpDirectory = tmp.dirSync()
+const tempDirectory = tmpDirectory.name
 
 export const init = async () => {
   try {
@@ -40,91 +41,99 @@ export const init = async () => {
       }
     }
 
-    // TODO: selecting template
-    const selectedTemplate = await selectTemplate()
+    const { name: templateName } = await selectTemplate()
     await R.pipeP(
       github.getTemplateFiles,
-      github.downloadTemplateFiles(tmpDirectory.name),
-    )(selectedTemplate.name)
+      github.downloadTemplateFiles(tempDirectory),
+    )(templateName)
 
-    const selectedServer = await server.listOrCreate()
-    const serverVariables = await server.getVariablesForServer(selectedServer.name)
-    // console.log('serverVariables', serverVariables);
-
+    const { name: serverName } = await server.listOrCreate()
+    const serverVariables = await server.getVariablesForServer(serverName)
     const gitlabRemotes = await gitlab.getRemotes(repository)
 
-    const remoteUrl =
+    const remoteName =
       gitlabRemotes.length > 1
-        ? (await gitlabPrompt.selectRightGitlabRemote(gitlabRemotes.map((remote) => ({ name: remote, value: remote }))))
-            .name
-        : gitlabRemotes[0]
+        ? (await gitlabPrompt.selectRightGitlabRemote(
+            gitlabRemotes.map((remote: Remote) => ({ name: remote.name() + ' ' + remote.url(), value: remote.name() })),
+          )).name
+        : gitlabRemotes[0].name()
 
-    // TODO: get variables from .env?
+    const remote = await git.getGitRemote(repository, remoteName)
+    const projectSlug = git.getProjectSlug(remote.url())
+    const projects = await gitlab.getProjects(projectSlug)
+
+    const gitlabProject = projects.length > 1 ? (await selectGitlabProject(projects)).project : projects[0]
+    const projectId = gitlabProject.id
+
+    // TODO: Initiate dbs
+
+    // TODO: Get variables from .env?
     const registryVariables = {
-      REGISTRY_URL: `${gitlab.getRegistryDomain()}/${gitlab.getUserAndProjectName(remoteUrl)}`,
-    }
+      REGISTRY_URL: `${gitlab.getRegistryDomain()}/${gitlab.getUserAndProjectName(remote.url())}`,
+    } as server.TemplateVariables
 
-    const templateVariables = await template.getTemplateVariables(`${tmpDirectory.name}/${selectedTemplate.name}`)
-    const neededTemplateVariables = templateVariables.filter(
+    const TemplateVariabless = await template.getTemplateVariabless(`${tempDirectory}/${templateName}`)
+    const neededTemplateVariabless = TemplateVariabless.filter(
       (variable) => ![...server.SERVER_VARIABLES, 'REGISTRY_URL'].includes(variable),
     )
-    const keyVariables: { [key: string]: server.GitlabVariable } = objFromListWith(R.prop('key'), serverVariables)
-    const userVariables = await pairVariables(neededTemplateVariables, { serverDomainOrIp: keyVariables.DEPLOYMENT_SERVER_IP.value })
+    const userVariables = await pairVariables(neededTemplateVariabless, {
+      currentUser: CURRENT_USER,
+      projectName: projectSlug,
+      serverDomainOrIp: serverVariables.DEPLOYMENT_SERVER_IP,
+    })
 
-    await template.writeTemplateVariables(
-      `${tmpDirectory.name}/${selectedTemplate.name}`,
-      Object.assign(serverVariables, registryVariables, userVariables),
-    )
+    await template.writeTemplateVariables(`${tempDirectory}/${templateName}`, {
+      ...serverVariables,
+      ...registryVariables,
+      ...userVariables,
+    })
 
-    // copy and remove
-    await filesystem.copyFilesFromDirectoryToCurrent(`${tmpDirectory.name}/${selectedTemplate.name}`)
-    await filesystem.removeFolder(tmpDirectory.name)
+    // Copy and remove
+    const filesToCommit = await filesystem.copyFilesFromDirectoryToCurrent(`${tempDirectory}/${templateName}`)
+    await filesystem.removeFolder(tempDirectory)
 
-    const projects = await gitlab.getProjects(git.getProjectName(remoteUrl))
-    const projectId = projects[0].id
     await gitlab.saveOrUpdateVariables(projectId, serverVariables)
 
-    // const newGroup = await gitlabAPI.Groups.create({
-    //   name: name,
-    //   path: name,
-    // })
+    // Commit and wait for pipeline
+    const commitChanges = await confirmGitCommitAndPush()
+    if (commitChanges.confirm) {
+      const relativeFilesToCommit = filesToCommit.map((filePath) => filePath.replace(process.cwd() + '/', ''))
 
-    // TODO: for dbs
-    // if (!isGit) {
-    //   const repository = await Repository.init(`./${selectedTemplate.name}`, 0);
-    //   // const newRepo = await creategitlabRepo(selectedTemplate.name);
-    //   // // create git remote
-    //   // await Remote.create(repository, 'deploy', newRepo.http_url_to_repo);
-    // }
+      const hasSSHKey = await gitlab.hasUserSomeSSHKeys(CURRENT_USER)
+      if (!hasSSHKey) {
+        spinner.warn(
+          `Plase upload your public ssh key into you Gitlab repository. Visit https://${GITLAB_DOMAIN}/profile/keys.`,
+        )
+      }
 
-    // await R.pipeP(
-    //   Template.getTemplateVariablesFromDirectory,
-    //   pairValues,
-    //   Template.writeTemplateVariablesToDirectory(selectedTemplate.name),
-    // )(selectedTemplate.name);
+      git.createCommit(repository, relativeFilesToCommit, 'Deploy with 🌱 plant started 🎉')
+      git.push(remote, 'deploy')
 
-    // console.log('x', x, y);
+      spinner.start(`Waiting until pipeline will be finished (takes around 2-5 minutes)`)
 
-    // const directories = await github.getListOfDirectories()
-    // const dirContent = await github.getDirContent('mongo')
-    // github.createDirStructure(dirContent)
-    // console.log('dirContent', dirContent);
-
-    // const projects = await gitlabAPI.Projects.all({ owned: true, search: 'test' })
-    // console.log('found',  projects);
-
-    // const newRepo = await creategitlabRepo('test2');
-    // console.log('newRepo', newRepo.http_url_to_repo, newRepo.ssh_url_to_repo);
-    // if (newRepo.http_url_to_repo) {
-    //   spinner.succeed(`New repository ${chalk.bold(newRepo.name_with_namespace)} is created. 🎉`);
-    //   // spinner.succeed(`New repository ${chalk.bold(newRepo.web_url)}. 🎉`);
-    // }
+      const branch = await repository.getCurrentBranch()
+      const commitSha = (await repository.getReferenceCommit(branch)).sha()
+      try {
+        await gitlab.waitUntilPipelineStatus(projectId, commitSha, (status: Status) => {
+          spinner.start(
+            `Pipeline for deploy started, you can check pipeline status on web: ${
+              CURRENT_USER.web_url
+            }/${projectSlug}/-/jobs/${status.id}`,
+          )
+        })
+        spinner.stop()
+        spinner.succeed(`Your project is deployed 🎉 visit: ${userVariables.VIRTUAL_HOST}`)
+      } catch (pipelineID) {
+        spinner.stop()
+        spinner.fail(`Something wrong happened, see ${CURRENT_USER.web_url}/${projectSlug}/-/jobs/${pipelineID}`)
+      }
+    }
 
     // remove temp dir
     // tmpDirectory.removeCallback();
-    await filesystem.removeFolder(tmpDirectory.name)
+    await filesystem.removeFolder(tempDirectory)
   } catch (error) {
-    await filesystem.removeFolder(tmpDirectory.name)
+    await filesystem.removeFolder(tempDirectory)
     // tmpDirectory.removeCallback();
     spinner.stop()
     spinner.fail(error)

@@ -1,5 +1,7 @@
 import chalk from 'chalk'
 import inquirer from 'inquirer'
+import R from 'ramda'
+import { Variable } from '../libs/gitlab.types'
 import { convertToSlug, randomNine } from '../libs/helpers'
 import * as serverPrompt from '../prompts/server'
 import { callMatchingMethod, GitlabAPI, spinner } from '../util'
@@ -93,13 +95,11 @@ export const listOrCreate = async (): Promise<{ name: string }> => {
   // }
 }
 
-export interface GitlabVariable {
-  key: string
-  value: string
-  id?: number | string
-  protected?: boolean
-  environment_scope?: string
+export interface TemplateVariables {
+  [key: string]: string
 }
 
-export const getVariablesForServer = async (groupId: string): Promise<GitlabVariable[]> =>
-  GitlabAPI.GroupVariables.all(groupId)
+export const getVariablesForServer = async (groupId: string): Promise<TemplateVariables> =>
+  (await GitlabAPI.GroupVariables.all(groupId))
+    .map((variable: Variable) => ({ [variable.key]: variable.value }))
+    .reduce(R.merge, {})

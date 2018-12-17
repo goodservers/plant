@@ -2,14 +2,15 @@ import chalk from 'chalk'
 import Gitlab from 'gitlab'
 import Ora from 'ora'
 import CacheConf from './libs/cache-conf'
+import { CurrentUser } from './libs/gitlab.types'
 import * as Create from './prompts/create'
 
 export const config = new CacheConf({ projectName: 'plant' })
 export const spinner = new Ora()
 // config.delete('gitlabToken');
-export const CURRENT_USER = config.get('currentUser')
-export const GITLAB_DOMAIN = config.get('gitlabDomain')
-export const ACCESS_TOKEN = config.get('gitlabToken')
+export const CURRENT_USER: CurrentUser = config.get('currentUser')
+export const GITLAB_DOMAIN: string = config.get('gitlabDomain')
+export const ACCESS_TOKEN: string = config.get('gitlabToken')
 export const GitlabAPI = new Gitlab({
   url: `https://${GITLAB_DOMAIN}`,
   token: ACCESS_TOKEN,
@@ -19,7 +20,6 @@ export const GitlabAPI = new Gitlab({
 
 export const initAccount = async () => {
   const verifyAccount = async ({ gitlabToken, gitlabDomain }: { gitlabToken: string; gitlabDomain: string }) => {
-    console.log('token,', gitlabToken, gitlabDomain)
     try {
       const api = new Gitlab({
         url: `https://${gitlabDomain}`,

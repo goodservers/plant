@@ -1,11 +1,12 @@
 import chalk from 'chalk'
 import inquirer from 'inquirer'
-import * as input from './inputs'
+import { Project } from '../libs/gitlab.types';
+import * as inputs from './inputs'
 
-export const repositoryName = (): Promise<{ name: string }> => {
+export const repositoryName = async (): Promise<{ name: string }> => {
   const questions = [
     {
-      type: 'input',
+      type: 'inputs',
       name: 'name',
       message: 'Give a repository name:',
     },
@@ -14,17 +15,33 @@ export const repositoryName = (): Promise<{ name: string }> => {
   return inquirer.prompt(questions)
 }
 
-export const gitlabAccess = (): Promise<{ gitlabDomain: string; gitlabToken: string }> =>
+export const gitlabAccess = async (): Promise<{ gitlabDomain: string; gitlabToken: string }> =>
   inquirer.prompt([
-    input.domain({
+    inputs.domain({
       name: 'gitlabDomain',
       message: 'Enter Gitlab domain',
       default: 'gitlab.com',
     }),
-    input.text({
+    inputs.text({
       name: 'gitlabToken',
-      type: 'input',
       validate: (val: string) => !!val.length || 'We need gitlab acces token :(',
       message: chalk.yellow('Please provide your Gitlab access token:'),
     }),
+  ])
+
+export const confirmGitCommitAndPush = async (): Promise<{ confirm: boolean }> =>
+  inquirer.prompt([
+    inputs.confirm({
+      message: 'Do you want to commit and push your changes to deploy?',
+    }),
+  ])
+
+export const selectGitlabProject = async (projects: Project[]): Promise<{ project: Project }> =>
+  inquirer.prompt([
+    {
+      type: 'list',
+      name: 'id',
+      message: 'Select gitlab project',
+      choices: projects.map(project => ({ name: project.name + ' (' + project.id + ')',  value: project }))
+    },
   ])
