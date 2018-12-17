@@ -49,7 +49,10 @@ export const saveOrUpdateVariables = async (projectId: number, variables: Templa
     R.applySpec({
       toCreate: R.pipe(
         R.filter((key: string) => !usedVariablesKeys.includes(key)) as any,
-        R.map((key: string) => GitlabAPI.ProjectVariables.create(projectId, variables[key])),
+        R.map((key: string) => GitlabAPI.ProjectVariables.create(projectId, {
+          key,
+          value: variables[key],
+        })),
       ),
       toUpdate: R.pipe(
         R.filter((key: string) => usedVariablesKeys.includes(key)) as any,
@@ -78,16 +81,14 @@ export const waitUntilPipelineStatus = async (
   return new Promise((resolve, reject) => {
     const retry = async (maxRetry: number, timeout: number) => {
       const status: Status[] = await GitlabAPI.Commits.status(projectId, sha1)
-
       if (count === 0) {
         firstStatus(status[0])
       }
 
       const allFinished = status.every((item: Status) => item.status === 'success')
-      const someError = status.filter((item: Status) => item.status === 'failed')
-
+      const someError = status.find((item: Status) => item.status === 'failed')
       if (someError) {
-        reject(someError[0].id)
+        reject(someError.id)
         return
       }
 

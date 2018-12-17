@@ -27,7 +27,7 @@ export const getProjectSlug = (remoteUrl: string): string => {
   return (found && found[1]) || ''
 }
 
-export const push = async (remote: Remote, remoteName = 'deploy'): Promise<number> => {
+export const push = async (remote: Remote, remoteName = 'master'): Promise<number> => {
   return remote.push([`refs/heads/${remoteName}:refs/heads/${remoteName}`], {
     callbacks: {
       credentials: (_, userName) => {

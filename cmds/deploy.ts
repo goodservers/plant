@@ -74,7 +74,7 @@ export const init = async () => {
 
     const TemplateVariabless = await template.getTemplateVariabless(`${tempDirectory}/${templateName}`)
     const neededTemplateVariabless = TemplateVariabless.filter(
-      (variable) => ![...server.SERVER_VARIABLES, 'REGISTRY_URL'].includes(variable),
+      (variable) => ![...server.SERVER_VARIABLES, ...Object.keys(registryVariables)].includes(variable),
     )
     const userVariables = await pairVariables(neededTemplateVariabless, {
       currentUser: CURRENT_USER,
@@ -106,8 +106,8 @@ export const init = async () => {
         )
       }
 
-      git.createCommit(repository, relativeFilesToCommit, 'Deploy with 🌱 plant started 🎉')
-      git.push(remote, 'deploy')
+      await git.createCommit(repository, relativeFilesToCommit, 'Deploy with 🌱 plant 🎉')
+      await git.push(remote)
 
       spinner.start(`Waiting until pipeline will be finished (takes around 2-5 minutes)`)
 
