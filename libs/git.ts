@@ -1,4 +1,4 @@
-import { Cred, Oid, Reference, Remote, Repository, Signature } from 'nodegit'
+import { Cred, Oid, Reference, Remote, Repository, Signature, Commit } from 'nodegit'
 import R from 'ramda'
 
 export const isGitRepository = async (path: string): Promise<boolean> => {
@@ -20,7 +20,8 @@ export const getGitRemotes = async (repository: Repository): Promise<Remote[]> =
   )(remotes) as Promise<Remote[]>
 }
 
-export const getGitRemote = async (repository: Repository, remote: string): Promise<Remote> => Remote.lookup(repository, remote)
+export const getGitRemote = async (repository: Repository, remote: string): Promise<Remote> =>
+  Remote.lookup(repository, remote)
 
 export const getProjectSlug = (remoteUrl: string): string => {
   const found = remoteUrl.match(/^.*\/(.*)\.git$/)
@@ -37,17 +38,30 @@ export const push = async (remote: Remote, remoteName = 'master'): Promise<numbe
   })
 }
 
-export const createCommit = async (repository: Repository, files: string[], message: string): Promise<Oid | undefined> => {
+const getParent = async (repository: Repository): Promise<Commit[]> => {
+  try {
+    const head = await Reference.nameToId(repository, 'HEAD')
+    const parent = await repository.getCommit(head)
+    return [parent]
+  } catch (error) {
+    return []
+  }
+}
+
+export const createCommit = async (
+  repository: Repository,
+  files: string[],
+  message: string,
+): Promise<Oid | undefined> => {
   try {
     const index = await repository.refreshIndex()
     await Promise.all(files.map((file) => index.addByPath(file)))
     await index.write()
     const oid = await index.writeTree()
-    const head = await Reference.nameToId(repository, 'HEAD')
-    const parent = await repository.getCommit(head)
-    const author = Signature.now('Tom Wagner', 'tomas.wagner@gmail.com')
-    const committer = Signature.now('Tom Wagner', 'tomas.wagner@gmail.com')
-    return repository.createCommit('HEAD', author, committer, message, oid, [parent])
+    const author = Signature.default(repository)
+    const committer = author
+    const parent = await getParent(repository)
+    return repository.createCommit('HEAD', author, committer, message, oid, parent)
   } catch (error) {
     console.log('errror', error)
   }

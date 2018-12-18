@@ -33,7 +33,7 @@ export const init = async () => {
       spinner.start('Creating gitlab repository...')
 
       // create git remote
-      await Remote.create(repository, 'deploy', newRepo.http_url_to_repo)
+      await Remote.create(repository, 'deploy', newRepo.ssh_url_to_repo)
 
       if (newRepo.http_url_to_repo) {
         spinner.stop()
