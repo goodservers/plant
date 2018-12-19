@@ -73,8 +73,8 @@ export const waitUntilPipelineStatus = async (
   projectId: number,
   sha1: string,
   firstStatus: (status: Status) => void,
-  maxRetry = 30,
-  timeout = 1000,
+  maxRetry = 60,
+  timeout = 25000,
 ): Promise<boolean> => {
   let count = 0
 
@@ -93,10 +93,8 @@ export const waitUntilPipelineStatus = async (
       }
 
       if (allFinished) {
-        console.log(`OMG, ${projectId} is alive!, status code: 'success'`)
         resolve(true)
       } else if (count++ < maxRetry) {
-        console.log('Checking', count, '/', maxRetry)
         return setTimeout(() => {
           retry(maxRetry, timeout)
         }, timeout)
