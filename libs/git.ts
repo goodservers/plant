@@ -38,31 +38,31 @@ export const push = async (remote: Remote, remoteName = 'master'): Promise<numbe
   })
 }
 
-const getParent = async (repository: Repository): Promise<Commit[]> => {
+const getParentCommit = async (repository: Repository): Promise<Commit | null> => {
   try {
     const head = await Reference.nameToId(repository, 'HEAD')
-    const parent = await repository.getCommit(head)
-    return [parent]
+    return repository.getCommit(head)
   } catch (error) {
-    return []
+    return null
   }
 }
 
-export const createCommit = async (
-  repository: Repository,
-  files: string[],
-  message: string,
-): Promise<Oid | undefined> => {
+export const isNewRepository = async (repository: Repository): Promise<boolean> => R.isNil(await getParentCommit(repository))
+
+export const commit = async (repository: Repository, oid: Oid,  message: string): Promise<Oid | undefined> => {
   try {
+    const author = Signature.default(repository)
+    const committer = author
+    const parent = await getParentCommit(repository)
+    return repository.createCommit('HEAD', author, committer, message, oid, !R.isNil(parent) ? [parent] : [])
+  } catch (error) {
+    console.log('error', error)
+  }
+}
+
+export const addFilesToCommit = async (repository: Repository, files: string[]): Promise<Oid> => {
     const index = await repository.refreshIndex()
     await Promise.all(files.map((file) => index.addByPath(file)))
     await index.write()
-    const oid = await index.writeTree()
-    const author = Signature.default(repository)
-    const committer = author
-    const parent = await getParent(repository)
-    return repository.createCommit('HEAD', author, committer, message, oid, parent)
-  } catch (error) {
-    console.log('errror', error)
-  }
+    return await index.writeTree()
 }

@@ -1,5 +1,5 @@
 import chalk from 'chalk'
-import { Remote, Repository } from 'nodegit'
+import { Remote, Repository, StatusFile } from 'nodegit'
 import R from 'ramda'
 import tmp from 'tmp'
 import * as filesystem from '../libs/filesystem'
@@ -8,7 +8,7 @@ import * as github from '../libs/github'
 import * as gitlab from '../libs/gitlab'
 import { Status } from '../libs/gitlab.types'
 import * as template from '../libs/template'
-import { confirmGitCommitAndPush, repositoryName, selectGitlabProject } from '../prompts/create'
+import { confirm, repositoryName, selectGitlabProject } from '../prompts/create'
 import * as gitlabPrompt from '../prompts/gitlab'
 import { selectTemplate } from '../prompts/templates'
 import { pairVariables } from '../prompts/variables'
@@ -40,6 +40,18 @@ export const init = async () => {
         spinner.succeed(`New repository ${chalk.bold(newRepo.name_with_namespace)} is created. 🎉`)
       }
     }
+    const repositoryStatus = await repository.getStatus();
+    const unstagedFilesToCommit = repositoryStatus.map((file: StatusFile) => file.path())
+    const oid = await git.addFilesToCommit(repository, unstagedFilesToCommit)
+    if (await git.isNewRepository(repository)) {
+      git.commit(repository, oid, 'Init 🌱')
+    }
+    // else {
+    //   const commitChanges = await confirm('Do you want to commit your unstaged changes? (required)')
+    //   if (commitChanges.confirm) {
+    //     git.commit(repository, oid, )
+    //   }
+    // }
 
     const { name: templateName } = await selectTemplate()
     await R.pipeP(
@@ -95,7 +107,7 @@ export const init = async () => {
     await gitlab.saveOrUpdateVariables(projectId, serverVariables)
 
     // Commit and wait for pipeline
-    const commitChanges = await confirmGitCommitAndPush()
+    const commitChanges = await confirm('Do you want to commit and push your changes to deploy?')
     if (commitChanges.confirm) {
       const relativeFilesToCommit = filesToCommit.map((filePath) => filePath.replace(process.cwd() + '/', ''))
 
@@ -106,7 +118,8 @@ export const init = async () => {
         )
       }
 
-      await git.createCommit(repository, relativeFilesToCommit, 'Deploy with 🌱 plant 🎉')
+      const oid = await git.addFilesToCommit(repository, relativeFilesToCommit)
+      await git.commit(repository, oid, 'Deploy with 🌱 plant 🎉')
       await git.push(remote)
 
       spinner.start(`Waiting until pipeline will be finished (takes around 2-5 minutes)`)

@@ -29,10 +29,10 @@ export const gitlabAccess = async (): Promise<{ gitlabDomain: string; gitlabToke
     }),
   ])
 
-export const confirmGitCommitAndPush = async (): Promise<{ confirm: boolean }> =>
+export const confirm = async (message: string): Promise<{ confirm: boolean }> =>
   inquirer.prompt([
     inputs.confirm({
-      message: 'Do you want to commit and push your changes to deploy?',
+      message,
     }),
   ])
 
