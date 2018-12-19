@@ -20,7 +20,7 @@ export const hasGitlabRemote = async (repository: Repository) => {
 }
 
 export const getUserAndProjectName = (url: string) => {
-  const found = url.match(/^.*\/(.*\/.*)\.git$/)
+  const found = url.match(/^.*[\/|:](.*\/.*)\.git$/)
   return found && found[1]
 }
 
@@ -96,6 +96,7 @@ export const waitUntilPipelineStatus = async (
         console.log(`OMG, ${projectId} is alive!, status code: 'success'`)
         resolve(true)
       } else if (count++ < maxRetry) {
+        console.log('Checking', count, '/', maxRetry)
         return setTimeout(() => {
           retry(maxRetry, timeout)
         }, timeout)

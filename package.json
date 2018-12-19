@@ -1,7 +1,7 @@
 {
   "name": "@goodservers/plant",
   "preferGlobal": true,
-  "version": "1.0.0-alpha.23",
+  "version": "1.0.0-alpha.24",
   "description": "A CLI to easily deploy your project to Gitlab and your VPS.",
   "repository": "goodservers/plant",
   "homepage": "https://deploy.guide",

@@ -23,7 +23,6 @@ export const init = async () => {
     const isGit = await git.isGitRepository('.')
 
     const repository = isGit ? await Repository.open('.') : await Repository.init(`.`, 0)
-
     if (!(await gitlab.hasGitlabRemote(repository))) {
       const project = await repositoryName()
       const newRepo = await gitlab.createRepository(project.name, {
@@ -63,6 +62,7 @@ export const init = async () => {
     const serverVariables = await server.getVariablesForServer(serverName)
     const gitlabRemotes = await gitlab.getRemotes(repository)
 
+    // @TODO filter remotes with my username only
     const remoteName =
       gitlabRemotes.length > 1
         ? (await gitlabPrompt.selectRightGitlabRemote(
@@ -78,7 +78,6 @@ export const init = async () => {
     const projectId = gitlabProject.id
 
     // TODO: Initiate dbs
-
     // TODO: Get variables from .env?
     const registryVariables = {
       REGISTRY_URL: `${gitlab.getRegistryDomain()}/${gitlab.getUserAndProjectName(remote.url())}`,
@@ -135,7 +134,7 @@ export const init = async () => {
           )
         })
         spinner.stop()
-        spinner.succeed(`Your project is deployed 🎉 visit: ${userVariables.VIRTUAL_HOST}`)
+        spinner.succeed(`Your project is deployed 🎉 visit: http://${userVariables.VIRTUAL_HOST}`)
       } catch (pipelineID) {
         spinner.stop()
         spinner.fail(`Something wrong happened, see ${CURRENT_USER.web_url}/${projectSlug}/-/jobs/${pipelineID}`)
