@@ -61,10 +61,12 @@
     "inquirer": "^6.0.0",
     "isomorphic-fetch": "^2.2.1",
     "mustache": "^3.0.1",
+    "node-ssh": "^5.1.2",
     "nodegit": "^0.23.0",
     "ora": "^3.0.0",
     "pkg-up": "^2.0.0",
     "ramda": "^0.26.1",
+    "randomatic": "^3.1.1",
     "tmp": "^0.0.33",
     "update-notifier": "^2.5.0"
   },

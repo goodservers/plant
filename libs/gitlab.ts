@@ -5,7 +5,7 @@ import { GITLAB_DOMAIN, GitlabAPI } from '../util'
 import * as git from './git'
 import { CurrentUser, Project, Repository as GitlabRepository, SSHKey, Status, Variable } from './gitlab.types'
 
-export const createRepository = (name: string, ...others: any): Promise<GitlabRepository> =>
+export const createRepository = (name: string, others: any): Promise<GitlabRepository> =>
   GitlabAPI.Projects.create({
     name,
     ...others,
@@ -40,6 +40,8 @@ export const getVariablesKeys = (variables: Variable[]): string[] =>
     R.map(R.values),
     R.flatten,
   )(variables) as any
+
+export const getProjectVariables = async (projectId: number): Promise<Variable[]> => GitlabAPI.ProjectVariables.all(projectId)
 
 export const saveOrUpdateVariables = async (projectId: number, variables: TemplateVariables) => {
   const usedVariablesKeys = getVariablesKeys(await GitlabAPI.ProjectVariables.all(projectId))

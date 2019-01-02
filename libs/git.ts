@@ -1,4 +1,4 @@
-import { Cred, Oid, Reference, Remote, Repository, Signature, Commit } from 'nodegit'
+import { Commit, Cred, Oid, Reference, Remote, Repository, Signature } from 'nodegit'
 import R from 'ramda'
 
 export const isGitRepository = async (path: string): Promise<boolean> => {

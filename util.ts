@@ -11,6 +11,7 @@ export const spinner = new Ora()
 export const CURRENT_USER: CurrentUser = config.get('currentUser')
 export const GITLAB_DOMAIN: string = config.get('gitlabDomain')
 export const ACCESS_TOKEN: string = config.get('gitlabToken')
+console.log('ACCESS_TOKEN', ACCESS_TOKEN)
 export const GitlabAPI = new Gitlab({
   url: `https://${GITLAB_DOMAIN}`,
   token: ACCESS_TOKEN,

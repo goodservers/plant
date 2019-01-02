@@ -1,11 +1,11 @@
 import fs from 'fs-extra'
-import globby from 'globby'
 import mustache from 'mustache'
 import R from 'ramda'
 import { TemplateVariables } from '../cmds/server'
 import { filters } from '../prompts/inputs'
+import { getAllFilesFromDirectory } from './filesystem'
 
-export const _getTemplateVariabless = (checkedToken: string) => (template: string) => {
+export const _getTemplateVariables = (checkedToken: string) => (template: string) => {
   const tokens = mustache.parse(template)
 
   return R.pipe(
@@ -17,16 +17,11 @@ export const _getTemplateVariabless = (checkedToken: string) => (template: strin
   )(tokens) as any
 }
 
-export const getRequiredVariables = _getTemplateVariabless('name')
-export const getOptionalVariables = _getTemplateVariabless('#')
+export const getRequiredVariables = _getTemplateVariables('name')
+export const getOptionalVariables = _getTemplateVariables('#')
 
-export const getFilesFromDirectory = async (directory: string) =>
-  globby([`${directory}/**/.*`, `${directory}/**/*`, `${directory}/.deploy/**/*`], {
-    expandDirectories: true,
-  })
-
-export const getTemplateVariabless = async (directory: string) => {
-  const files = await getFilesFromDirectory(directory)
+export const getTemplateVariables = async (directory: string) => {
+  const files = await getAllFilesFromDirectory(directory)
   const filesP = (await R.pipe(
     R.map(async (filePath: string) => {
       const template = await fs.readFile(filePath, 'utf8')
@@ -63,7 +58,7 @@ const emptyToNullVariable = (variables: TemplateVariables): TemplateVariablesNul
 }
 
 export const writeTemplateVariables = async (directory: string, variables: TemplateVariables) => {
-  const filePaths = await getFilesFromDirectory(directory)
+  const filePaths = await getAllFilesFromDirectory(directory)
   const variablesWithNull = emptyToNullVariable(variables)
 
   return await R.pipe(

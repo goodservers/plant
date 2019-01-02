@@ -1,6 +1,7 @@
 import chalk from 'chalk'
 import inquirer from 'inquirer'
 import R from 'ramda'
+import * as gitlab from '../libs/gitlab'
 import { Variable } from '../libs/gitlab.types'
 import { convertToSlug, randomNine } from '../libs/helpers'
 import * as serverPrompt from '../prompts/server'
@@ -57,6 +58,7 @@ export const listOrCreate = async (): Promise<{ name: string }> => {
   // try {
   spinner.start(`Listing servers...`)
 
+  // TODO: add types
   const list: any[] = await GitlabAPI.Groups.all({
     owned: true,
   })

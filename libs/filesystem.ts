@@ -1,19 +1,30 @@
 import fs from 'fs-extra'
+import globby from 'globby'
 import path from 'path'
 import { FilePath } from '../types';
 
-export const getDirectoryPaths = (dir: string, filelist: string[] = []) => {
+export const getAllFilesFromDirectory = async (directory: string) =>
+  globby([`${directory}/**/.*`, `${directory}/**/*`, `${directory}/.deploy/**/*`], {
+    expandDirectories: true,
+  })
+
+export const getEnvFiles = async (directory: string) =>
+  globby([`${directory}/**/.env`, `${directory}/**/env.example`], {
+    expandDirectories: false,
+  })
+
+export const getDirectoryPaths = (dir: string, fileList: string[] = []) => {
   const nDir = dir.endsWith('/') ? dir : `${dir}/`
   const files = fs.readdirSync(nDir)
-  filelist = filelist || []
+  fileList = fileList || []
   files.forEach((file) => {
     if (fs.statSync(nDir + file).isDirectory()) {
-      filelist = getDirectoryPaths(`${nDir}${file}/`, filelist)
+      fileList = getDirectoryPaths(`${nDir}${file}/`, fileList)
     } else {
-      filelist.push(`${nDir}${file}`)
+      fileList.push(`${nDir}${file}`)
     }
   })
-  return filelist
+  return fileList
 }
 
 export const pathToParent = (path: string) => path.replace(/(\.\/).*[^\/](.*)/, '')

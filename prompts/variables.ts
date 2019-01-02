@@ -12,9 +12,11 @@ const defaultVariable = (variable: string): Partial<Question> => ({
 export const formatXipIoDomain = (ip: string | null, subdomain?: string): string =>
   (subdomain ? `${subdomain}.` : '') + `${ip}.xip.io`
 
+export interface VariablesContext { currentUser: CurrentUser; projectName: string; serverDomainOrIp: string | null }
+
 export const pairVariables = async (
   variables: string[],
-  context: { currentUser: CurrentUser; projectName: string; serverDomainOrIp: string | null },
+  context: VariablesContext,
 ): Promise<TemplateVariables> => {
   const xipIoDomain = formatXipIoDomain(context.serverDomainOrIp, context.projectName)
 
