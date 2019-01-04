@@ -1,5 +1,5 @@
 import R from 'ramda'
-import randomize from 'randomatic'
+import randomatic from 'randomatic'
 
 export const convertToSlug = (x: string): string =>
   x
@@ -17,4 +17,6 @@ export const objFromListWith = R.curry((fn: any, list: any[]) =>
   R.chain(R.zipObj, R.map(fn))(list),
 )
 
-export const getRandomPassword = () => randomize('*', 16)
+export const getRandomPassword = () =>
+  randomatic('?', 16, { chars: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@<>-–%+=#$^~&*!' })
+export const getRandomDBName = () => randomatic('a', 8)

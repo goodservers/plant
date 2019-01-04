@@ -40,7 +40,7 @@ export const selectGitlabProject = async (projects: Project[]): Promise<{ projec
   inquirer.prompt([
     {
       type: 'list',
-      name: 'id',
+      name: 'project',
       message: 'Select gitlab project',
       choices: projects.map(project => ({ name: project.name + ' (' + project.id + ')',  value: project }))
     },

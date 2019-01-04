@@ -8,7 +8,7 @@ import * as git from '../libs/git'
 import * as github from '../libs/github'
 import * as gitlab from '../libs/gitlab'
 import { Status } from '../libs/gitlab.types'
-import { getRandomPassword } from '../libs/helpers'
+import { getRandomDBName, getRandomPassword } from '../libs/helpers'
 import { connect } from '../libs/ssh'
 import * as template from '../libs/template'
 import { confirm, repositoryName, selectGitlabProject } from '../prompts/create'
@@ -90,70 +90,70 @@ const initDatabase = async (serverId: string): Promise<server.TemplateVariables>
 
   const projects = await gitlab.getProjects(dbTemplateName)
 
-  let repo = projects[0];
-  if (projects.length > 1) {
-    repo = (await selectGitlabProject(projects)).project
-  } else {
+  let repo = projects[0]
+  if (projects.length === 0) {
     repo = await gitlab.createRepository(dbTemplateName, {
       namespace_id: parseInt(serverId, 10),
       container_registry_enabled: true,
     })
+    const serverVariables = await server.getVariablesForServer(serverId)
+
+    // spinner.start('Creating gitlab repository...')
+    const dbRepo = await Repository.init(`${tempDirectory}/${dbTemplateName}`, 0)
+    await Remote.create(dbRepo, 'origin', repo.ssh_url_to_repo)
+
+    const remote = await git.getGitRemote(dbRepo, 'origin')
+
+    const projectSlug = git.getProjectSlug(remote.url())
+    const projectId = repo.id
+
+    // TODO: remove
+    const variablesContext = {
+      currentUser: CURRENT_USER,
+      projectName: projectSlug,
+      serverDomainOrIp: serverVariables.DEPLOYMENT_SERVER_IP,
+    }
+
+    const dbVariables = await fillVariables(remote.url(), projectId, serverId, dbTemplateName, variablesContext)
+
+    // ENV variables
+    const envFiles = await filesystem.getEnvFiles(`${tempDirectory}/${dbTemplateName}`)
+    const emptyEnvVariables = await parseEnvVariables(envFiles)
+    // TODO: auto fill variables (USERNAME, PASSWORD)
+    const environmentVariables = await pairVariables(Object.keys(emptyEnvVariables), variablesContext)
+
+    await gitlab.saveOrUpdateVariables(repo.id, environmentVariables)
+
+    const repositoryStatus = await dbRepo.getStatus()
+    const unstagedFilesToCommit = repositoryStatus.map((file: StatusFile) => file.path())
+    const oid = await git.addFilesToCommit(dbRepo, unstagedFilesToCommit)
+    if (await git.isNewRepository(dbRepo)) {
+      git.commit(dbRepo, oid, 'Init database 🌱')
+    }
+
+    await git.push(remote)
+
+    spinner.start(`Waiting until deployment will be finished (takes around 2-5 minutes)`)
+
+    const pipelineResult = await waitUntilFinishedPipeline(dbRepo, projectId, (status: Status) => {
+      spinner.start(
+        `Pipeline for db deployment has been started, you can check pipeline status on web: ${
+          CURRENT_USER.web_url
+        }/${projectSlug}/-/jobs/${status.id}`,
+      )
+    })
+    spinner.stop()
+    pipelineResult
+      ? spinner.succeed(`Your db is deployed, username`)
+      : spinner.fail(`Something wrong happened, see ${CURRENT_USER.web_url}/${projectSlug}/-/jobs/${pipelineResult}`)
+
+    return { ...dbVariables, ...environmentVariables }
+  } else if (projects.length > 1) {
+    repo = (await selectGitlabProject(projects)).project
   }
-
-  const serverVariables = await server.getVariablesForServer(serverId)
-
-  // spinner.start('Creating gitlab repository...')
-  const dbRepo = await Repository.init(`${tempDirectory}/${dbTemplateName}`, 0)
-  await Remote.create(dbRepo, 'origin', repo.ssh_url_to_repo)
-
-  const remote = await git.getGitRemote(dbRepo, 'origin')
-
-  const projectSlug = git.getProjectSlug(remote.url())
-  const projectId = repo.id
-
-  // TODO: remove
-  const variablesContext = {
-    currentUser: CURRENT_USER,
-    projectName: projectSlug,
-    serverDomainOrIp: serverVariables.DEPLOYMENT_SERVER_IP,
-  }
-
-  const dbVariables = await fillVariables(remote.url(), projectId, serverId, dbTemplateName, variablesContext)
-
-  // ENV variables
-  const envFiles = await filesystem.getEnvFiles(`${tempDirectory}/${dbTemplateName}`)
-  const emptyEnvVariables = await parseEnvVariables(envFiles)
-  // TODO: auto fill variables (USERNAME, PASSWORD)
-  const environmentVariables = await pairVariables(Object.keys(emptyEnvVariables), variablesContext)
-
-  await gitlab.saveOrUpdateVariables(repo.id, environmentVariables)
-
-  const repositoryStatus = await dbRepo.getStatus()
-  const unstagedFilesToCommit = repositoryStatus.map((file: StatusFile) => file.path())
-  const oid = await git.addFilesToCommit(dbRepo, unstagedFilesToCommit)
-  if (await git.isNewRepository(dbRepo)) {
-    git.commit(dbRepo, oid, 'Init database 🌱')
-  }
-
-  await git.push(remote)
-
-  spinner.start(`Waiting until deployment will be finished (takes around 2-5 minutes)`)
-
-  const pipelineResult = await waitUntilFinishedPipeline(dbRepo, projectId, (status: Status) => {
-    spinner.start(
-      `Pipeline for db deployment has been started, you can check pipeline status on web: ${
-        CURRENT_USER.web_url
-      }/${projectSlug}/-/jobs/${status.id}`,
-    )
-  })
-  spinner.stop()
-  pipelineResult
-    ? spinner.succeed(`Your db is deployed, username`)
-    : spinner.fail(`Something wrong happened, see ${CURRENT_USER.web_url}/${projectSlug}/-/jobs/${pipelineResult}`)
-
-  // const repoVariables = await gitlab.getProjectVariables(repo.id)
-
-  return { ...dbVariables, ...environmentVariables }
+  console.log('repo', repo)
+  const repoVariables = await gitlab.getProjectVariables(repo.id)
+  return repoVariables
 }
 
 export const init = async () => {
@@ -213,6 +213,7 @@ export const init = async () => {
     const projects = await gitlab.getProjects(projectSlug)
 
     const gitlabProject = projects.length > 1 ? (await selectGitlabProject(projects)).project : projects[0]
+    console.log('gitlabProject', gitlabProject)
     const projectId = gitlabProject.id
 
     const variablesContext = {
@@ -228,6 +229,7 @@ export const init = async () => {
     // TODO: check external_links in docker-compose
     if (initDB.confirm) {
       const dbVariables = await initDatabase(serverId)
+      console.log('dbVariables', dbVariables)
 
       const ssh = await connect(
         variables.DEPLOYMENT_SERVER_IP,
@@ -235,32 +237,35 @@ export const init = async () => {
       )
 
       // check db and setup users
-      const container = await ssh.execCommand(`docker ps -q --filter "name=${dbVariables.PROJECT_NAME}"`, { cwd: '/' })
+      const container = await ssh.execCommand(`docker ps -q --filter "name=mysql"`, { cwd: '/' })
 
       const dbAccess: server.TemplateVariables = {
         DB_HOSTNAME: dbVariables.PROJECT_NAME,
-        DB_NAME: 'test',
-        DB_USERNAME: 'test',
+        DB_NAME: getRandomDBName(),
+        DB_USERNAME: getRandomDBName(),
         DB_PASSWORD: getRandomPassword(),
       }
+
       if (!R.isEmpty(container.stdout)) {
         const mysqlRun = mysql('root', dbVariables.DB_PASSWORD)
-        const response1 = await ssh.execCommand(
-          dockerExec(container.stdout, mysqlRun(sql.createDb(dbAccess.DB_NAME))),
-          {
-            cwd: '/',
-          },
-        )
-        const response2 = await ssh.execCommand(
-          dockerExec(
-            container.stdout,
-            mysqlRun(
-              sql.grant(dbAccess.DB_USERNAME, dbAccess.DB_PASSWORD, dbAccess.DB_NAME),
+        try {
+          const response1 = await ssh.execCommand(
+            dockerExec(container.stdout, mysqlRun(sql.createDb(dbAccess.DB_NAME))),
+            {
+              cwd: '/',
+            },
+          )
+          const response2 = await ssh.execCommand(
+            dockerExec(
+              container.stdout,
+              mysqlRun(sql.grant(dbAccess.DB_USERNAME, dbAccess.DB_PASSWORD, dbAccess.DB_NAME)),
             ),
-          ),
-          { cwd: '/' },
-        )
-        // TODO: handle errors
+            { cwd: '/' },
+          )
+        } catch (error) {
+          // TODO: handle errors - add posibility to enter manual input
+          console.log('DB access error:', error)
+        }
       }
 
       // TODO: save DB variables

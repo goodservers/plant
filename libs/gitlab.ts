@@ -41,7 +41,11 @@ export const getVariablesKeys = (variables: Variable[]): string[] =>
     R.flatten,
   )(variables) as any
 
-export const getProjectVariables = async (projectId: number): Promise<Variable[]> => GitlabAPI.ProjectVariables.all(projectId)
+export const getProjectVariables = async (projectId: number): Promise<TemplateVariables> =>
+  (await GitlabAPI.ProjectVariables.all(projectId)).reduce(
+    (acc: TemplateVariables, item: Variable) => ({ ...acc, [item.key]: item.value }),
+    {},
+  )
 
 export const saveOrUpdateVariables = async (projectId: number, variables: TemplateVariables) => {
   const usedVariablesKeys = getVariablesKeys(await GitlabAPI.ProjectVariables.all(projectId))
@@ -51,10 +55,12 @@ export const saveOrUpdateVariables = async (projectId: number, variables: Templa
     R.applySpec({
       toCreate: R.pipe(
         R.filter((key: string) => !usedVariablesKeys.includes(key)) as any,
-        R.map((key: string) => GitlabAPI.ProjectVariables.create(projectId, {
-          key,
-          value: variables[key],
-        })),
+        R.map((key: string) =>
+          GitlabAPI.ProjectVariables.create(projectId, {
+            key,
+            value: variables[key],
+          }),
+        ),
       ),
       toUpdate: R.pipe(
         R.filter((key: string) => usedVariablesKeys.includes(key)) as any,
