@@ -78,7 +78,7 @@ const sql = {
     `GRANT ALL PRIVILEGES ON ${database}.${table} TO '${username}'@'%' IDENTIFIED BY '${password}';`,
 }
 
-const initDatabase = async (): Promise<server.TemplateVariables> => {
+const initDatabase = async (serverId: string): Promise<server.TemplateVariables> => {
   const { name: dbTemplateName } = await selectTemplate()
 
   await R.pipeP(
@@ -86,12 +86,19 @@ const initDatabase = async (): Promise<server.TemplateVariables> => {
     github.downloadTemplateFiles(tempDirectory),
   )(dbTemplateName)
 
-  const { name: serverId } = await server.listOrCreate()
+  // const { name: serverId } = await server.listOrCreate()
 
-  const repo = await gitlab.createRepository(dbTemplateName, {
-    namespace_id: parseInt(serverId, 10),
-    container_registry_enabled: true,
-  })
+  const projects = await gitlab.getProjects(dbTemplateName)
+
+  let repo = projects[0];
+  if (projects.length > 1) {
+    repo = (await selectGitlabProject(projects)).project
+  } else {
+    repo = await gitlab.createRepository(dbTemplateName, {
+      namespace_id: parseInt(serverId, 10),
+      container_registry_enabled: true,
+    })
+  }
 
   const serverVariables = await server.getVariablesForServer(serverId)
 
@@ -102,9 +109,6 @@ const initDatabase = async (): Promise<server.TemplateVariables> => {
   const remote = await git.getGitRemote(dbRepo, 'origin')
 
   const projectSlug = git.getProjectSlug(remote.url())
-  // const projects = await gitlab.getProjects(projectSlug)
-
-  // const gitlabProject = projects.length > 1 ? (await selectGitlabProject(projects)).project : projects[0]
   const projectId = repo.id
 
   // TODO: remove
@@ -223,7 +227,7 @@ export const init = async () => {
 
     // TODO: check external_links in docker-compose
     if (initDB.confirm) {
-      const dbVariables = await initDatabase()
+      const dbVariables = await initDatabase(serverId)
 
       const ssh = await connect(
         variables.DEPLOYMENT_SERVER_IP,
