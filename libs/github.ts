@@ -14,12 +14,12 @@ export const getApiLimit = async () => {
     fetchJson,
     // @ts-ignore FIXME:
     R.then(R.identity),
-  )(`${API_URL}/rate_limit`)
+  )(`${API_URL}rate_limit`)
 
   return R.pipe(R.path(['resources', 'core', 'remaining']))(limits)
 }
 
-export const getListOfDirectories = async () => {
+export const getListOfDirectories = async (): Promise<string[]> => {
   const list = await R.pipe(
     fetchJson,
     // @ts-ignore FIXME:
@@ -28,7 +28,7 @@ export const getListOfDirectories = async () => {
 
   return R.pipe(
     // @ts-ignore FIXME:
-    R.filter((object) => object.type === 'dir'),
+    R.filter((object: GithubFile) => object.type === 'dir'),
     R.map(R.pick(['path'])),
     R.map(R.values),
     R.flatten,

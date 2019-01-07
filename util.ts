@@ -3,6 +3,7 @@ import Gitlab from 'gitlab'
 import Ora from 'ora'
 import CacheConf from './libs/cache-conf'
 import { CurrentUser } from './libs/gitlab.types'
+import { checkGithubApiLimit } from './loaders';
 import * as Create from './prompts/create'
 
 export const config = new CacheConf({ projectName: 'plant' })
@@ -61,5 +62,15 @@ export const callMatchingMethod = (object, method) => {
     object.init()
   } else {
     console.error(`Couldn't find the method/property ${method} in ${object} `)
+  }
+}
+
+export const handleError = async (spinner: any, error: string) => {
+  spinner.stop()
+  const isLimitError = await checkGithubApiLimit()
+  if (isLimitError) {
+    spinner.fail('Github API rate limit was exceeded, please wait. (check https://api.github.com/rate_limit)')
+  } else {
+    spinner.fail(error)
   }
 }

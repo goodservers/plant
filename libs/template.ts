@@ -4,6 +4,7 @@ import R from 'ramda'
 import { TemplateVariables } from '../cmds/server'
 import { filters } from '../prompts/inputs'
 import { getAllFilesFromDirectory } from './filesystem'
+import * as github from './github'
 
 export const _getTemplateVariables = (checkedToken: string) => (template: string) => {
   const tokens = mustache.parse(template)
@@ -72,3 +73,18 @@ export const writeTemplateVariables = async (directory: string, variables: Templ
 
 export const renderTemplate = (template: string, variables: { [key: string]: string }): string =>
   mustache.render(template, variables)
+
+export interface Template {
+  name: string
+  isDatabase: boolean
+  path: string
+}
+
+export const getListOfTemplates = async (): Promise<Template[]> =>
+  (await github.getListOfDirectories()).map(matchTypeOfTemplate)
+
+const matchTypeOfTemplate = (path: string): Template => ({
+  name: path.replace('-db', ''),
+  isDatabase: path.endsWith('-db'),
+  path,
+})

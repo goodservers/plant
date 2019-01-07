@@ -1,6 +1,6 @@
-import * as Github from './libs/github'
-import { Choice } from './prompts/inputs'
-import { config, spinner } from './util'
+import * as github from './libs/github'
+import * as template from './libs/template'
+import { config, handleError, spinner } from './util'
 
 const deleteKey = (key: string) => {
   if (config.isExpired(key)) {
@@ -8,21 +8,22 @@ const deleteKey = (key: string) => {
   }
 }
 
-const checkGithubApiLimit = async (spinner) => {
-  const limit = await Github.getApiLimit()
-  if (limit === 0) {
-    spinner.fail('Github API rate limit was exceeded, please wait until:')
-  }
+export const checkGithubApiLimit = async (): Promise<boolean> => {
+  const limit = await github.getApiLimit()
+  return limit === 0
 }
 
-const stringMapFunction = (item: string) => ({ name: item, value: item })
+export interface Choice<T> {
+  name: string
+  value: T
+}
 
-const cachedLoader = async (
+const cachedLoader = async <T>(
   cacheKey: string,
-  asyncLoadingFunction: () => Promise<any[]>,
-  mappingFunction: (x: any) => Choice,
+  asyncLoadingFunction: () => Promise<T[]>,
+  mappingFunction: (item: T) => Choice<T>,
   maxAge = 8640000,
-) => {
+): Promise<Array<Choice<T>>> => {
   let choices: any[] = []
 
   deleteKey(cacheKey)
@@ -30,13 +31,13 @@ const cachedLoader = async (
     spinner.start(`Loading available ${cacheKey}...`)
 
     if (config.has(cacheKey)) {
-      choices = config.get(cacheKey) as Choice[]
+      choices = config.get(cacheKey) as Array<Choice<T>>
       spinner.stop()
     } else {
       const input = await asyncLoadingFunction()
       spinner.stop()
 
-      choices = input.map(mappingFunction)
+      choices = input.map(mappingFunction) as Array<Choice<T>>
 
       config.setKey(cacheKey, choices, {
         maxAge,
@@ -45,11 +46,16 @@ const cachedLoader = async (
 
     return choices
   } catch (error) {
-    spinner.stop()
-    checkGithubApiLimit(spinner)
-    spinner.fail(error)
+    await handleError(spinner, error)
   }
+  return []
 }
 
-export const loadAvailableTemplates = async () =>
-  cachedLoader('templates', Github.getListOfDirectories, stringMapFunction)
+export const loadAvailableTemplates = async (filter: (template: template.Template) => boolean) => {
+  const templateList = await cachedLoader('templates', template.getListOfTemplates, (template: template.Template) => ({
+    name: template.name,
+    value: template,
+  }))
+
+  return templateList.filter((choice: Choice<template.Template>) => filter(choice.value))
+}

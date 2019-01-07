@@ -1,4 +1,4 @@
-import { Commit, Cred, Oid, Reference, Remote, Repository, Signature } from 'nodegit'
+import { Commit, Cred, Oid, Reference, Remote, Repository, Signature, StatusFile } from 'nodegit'
 import R from 'ramda'
 
 export const isGitRepository = async (path: string): Promise<boolean> => {
@@ -65,4 +65,10 @@ export const addFilesToCommit = async (repository: Repository, files: string[]):
     await Promise.all(files.map((file) => index.addByPath(file)))
     await index.write()
     return await index.writeTree()
+}
+
+export const addStatusFilesToCommit = async (repository: Repository) => {
+  const repositoryStatus = await repository.getStatus()
+  const unstagedFilesToCommit = repositoryStatus.map((file: StatusFile) => file.path())
+  return addFilesToCommit(repository, unstagedFilesToCommit)
 }

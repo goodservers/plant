@@ -18,6 +18,7 @@ export const pairVariables = async (
   variables: string[],
   context: VariablesContext,
 ): Promise<TemplateVariables> => {
+  // TODO: fix when domain is passed
   const xipIoDomain = formatXipIoDomain(context.serverDomainOrIp, context.projectName)
 
   return inquirer.prompt(

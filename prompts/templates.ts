@@ -1,12 +1,13 @@
 import inquirer from 'inquirer'
+import { Template } from '../libs/template';
 import { loadAvailableTemplates } from '../loaders'
 
-export const selectTemplate = async (): Promise<{ name: string }> =>
+export const selectTemplate = async (filter: (template: Template) => boolean): Promise<{ template: Template }> =>
   inquirer.prompt([
     {
       type: 'list',
-      name: 'name',
+      name: 'template',
       message: 'Select init template',
-      choices: await loadAvailableTemplates(),
+      choices: await loadAvailableTemplates(filter),
     },
   ])

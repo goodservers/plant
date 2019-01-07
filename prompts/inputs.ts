@@ -1,11 +1,6 @@
 import R from 'ramda'
 import { convertToSlug } from '../libs/helpers'
 
-export interface Choice {
-  name: string
-  value: string
-}
-
 // TODO: add more validators, combine them
 export const validator = {
   domain: (val: string, message = 'Please enter a valid domain name') =>

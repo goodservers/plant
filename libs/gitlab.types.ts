@@ -62,6 +62,22 @@ export interface SSHKey {
   created_at: Date
 }
 
+export interface Group {
+  id: number
+  name: string
+  path: string
+  description: string
+  visibility: string
+  lfs_enabled: boolean
+  avatar_url: string
+  web_url: string
+  request_access_enabled: boolean
+  full_name: string
+  full_path: string
+  file_template_project_id: boolean
+  parent_id: number | null
+}
+
 export interface Project {
   id: number
   description: string
