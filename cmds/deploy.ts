@@ -1,5 +1,7 @@
 import chalk from 'chalk'
 import fs from 'fs-extra'
+import inquirer from 'inquirer'
+import mustache from 'mustache'
 import { Remote, Repository } from 'nodegit'
 import R from 'ramda'
 import tmp from 'tmp'
@@ -16,6 +18,7 @@ import * as template from '../libs/template'
 import { loadAvailableTemplates } from '../loaders'
 import { confirm, repositoryName, selectGitlabProject } from '../prompts/create'
 import * as gitlabPrompt from '../prompts/gitlab'
+import * as inputs from '../prompts/inputs'
 import { selectTemplate } from '../prompts/templates'
 import { pairVariables, VariablesContext } from '../prompts/variables'
 import { CURRENT_USER, GITLAB_DOMAIN, handleError, spinner } from '../util'
@@ -75,16 +78,18 @@ const waitUntilFinishedPipeline = async (
   }
 }
 
-const dockerExec = (containerName: string, command: string) => `docker exec -t ${containerName} ${command}`
+const dockerExec = ({ PROJECT_NAME }: server.TemplateVariables) => (command: string) =>
+  `docker exec -t ${PROJECT_NAME} ${command}`
 
 const cli = {
-  mysql: (user = 'root', pass: string) => (command: string) => `mysql -u${user} -p${pass} --execute="${command}"`,
+  mysql: ({ DB_USER = 'root', DB_PASSWORD }: server.TemplateVariables) => (command: string) =>
+    `mysql -u${DB_USER} -p${DB_PASSWORD} --execute="${command}"`,
 }
 
 const sql = {
-  createDb: (dbname: string) => `CREATE DATABASE IF NOT EXISTS ${dbname};`,
-  grant: (username: string, password: string, database = '*', table = '*') =>
-    `GRANT ALL PRIVILEGES ON ${database}.${table} TO '${username}'@'%' IDENTIFIED BY '${password}';`,
+  createDb: ({ DB_USERNAME }: server.TemplateVariables) => () => `CREATE DATABASE ${DB_USERNAME};`,
+  grant: ({ DB_USERNAME, DB_PASSWORD, DB_DATABASE = '*', DB_TABLE = '*' }: server.TemplateVariables) => () =>
+    `GRANT ALL PRIVILEGES ON ${DB_DATABASE}.${DB_TABLE} TO '${DB_USERNAME}'@'%' IDENTIFIED BY '${DB_PASSWORD}';`,
 }
 
 const initDatabase = async (serverId: number): Promise<{ name: string; variables: server.TemplateVariables }> => {
@@ -254,39 +259,91 @@ export const init = async () => {
 
       const dbAccess: server.TemplateVariables = {
         DB_HOSTNAME: database.variables.PROJECT_NAME,
-        DB_NAME: getRandomDBName(),
+        DB_NAME: 'xxx' || getRandomDBName(),
         DB_USERNAME: getRandomDBName(),
         DB_PASSWORD: getRandomPassword(),
       }
 
-      if (!R.isEmpty(container.stdout)) {
-        const mysqlCli = cli.mysql('root', database.variables.DB_PASSWORD)
-        try {
-          // TODO: check if database exists in db, create
-          await ssh.execCommand(
-            dockerExec(container.stdout, mysqlCli(sql.createDb(dbAccess.DB_NAME))),
-            {
-              cwd: '/',
-            },
-          )
-        } catch (error) {
-          // TODO: handle errors - add posibility to enter manual input
-          console.log('Shell Error:', error)
-        }
+      interface Output {
+        stdout: string
+        options?: any
+        stderr: string
+        signal: string
+        code: number
+      }
 
+      const runCommandUntilSucceed = async (
+        command: (vars: server.TemplateVariables) => string,
+        variables: server.TemplateVariables,
+      ) => {
         try {
-          // TODO: check if user exists in db, create
-          await ssh.execCommand(
-            dockerExec(
-              container.stdout,
-              mysqlCli(sql.grant(dbAccess.DB_USERNAME, dbAccess.DB_PASSWORD, dbAccess.DB_NAME)),
-            ),
-            { cwd: '/' },
-          )
+          const output: Output = await ssh.execCommand(command(variables), {
+            cwd: '/',
+          })
+          console.log('output', command(variables), output);
+          if (output.stderr) {
+            throw new Error(output.stderr)
+          }
         } catch (error) {
-          // TODO: handle errors - add posibility to enter manual input
-          console.log('Shell Error:', error)
+          spinner.fail(error)
+          const userInput = await confirm('Do you want to change some variable?')
+          if (userInput.confirm) {
+            const newVariables: server.TemplateVariables = await inquirer.prompt([
+              ...Object.keys(variables).map((variableName) =>
+                inputs.text({
+                  default: variables[variableName],
+                  message: chalk.yellow(`Please fill variable: ${variableName}`),
+                  name: variableName,
+                  validate: (val: string) => !!val.length,
+                }),
+              ),
+            ])
+            runCommandUntilSucceed(command, newVariables)
+          }
         }
+      }
+
+      // const mapParams = (variables: Map<string, string>): string[] => Array.from(variables.values())
+
+      // inputs.text({
+      //   name: 'gitlabToken',
+      //   validate: (val: string) => !!val.length || 'We need gitlab acces token :(',
+      //   message: chalk.yellow('Please provide your Gitlab access token:'),
+      // })
+
+      if (!R.isEmpty(container.stdout)) {
+        const createDb = (props: server.TemplateVariables) =>
+          R.compose(
+            dockerExec(props),
+            cli.mysql(props),
+            sql.createDb(props),
+          )()
+
+        // console.log('xxx', createDb({ ...dbAccess }))
+        await runCommandUntilSucceed(createDb, { ...dbAccess, PROJECT_NAME: dbAccess.DB_HOSTNAME })
+
+        // try {
+        //   // TODO: check if database exists in db, create
+        //   await ssh.execCommand(dockerExec(container.stdout)(mysqlCli(sql.createDb(dbAccess.DB_NAME))), {
+        //     cwd: '/',
+        //   })
+        // } catch (error) {
+        //   // TODO: handle errors - add posibility to enter manual input
+        //   console.log('Shell Error:', error)
+        // }
+
+        // try {
+        //   // TODO: check if user exists in db, create
+        //   await ssh.execCommand(
+        //     dockerExec(container.stdout)(
+        //       mysqlCli(sql.grant(dbAccess.DB_USERNAME, dbAccess.DB_PASSWORD, dbAccess.DB_NAME)),
+        //     ),
+        //     { cwd: '/' },
+        //   )
+        // } catch (error) {
+        //   // TODO: handle errors - add posibility to enter manual input
+        //   console.log('Shell Error:', error)
+        // }
       }
 
       // TODO: save DB variables
