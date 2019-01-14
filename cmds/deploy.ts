@@ -83,7 +83,7 @@ const dockerExec = ({ PROJECT_NAME }: server.TemplateVariables) => (command: str
 
 const cli = {
   mysql: ({ DB_USER = 'root', DB_PASSWORD }: server.TemplateVariables) => (command: string) =>
-    `mysql -u${DB_USER} -p${DB_PASSWORD} --execute="${command}"`,
+    `mysql -u"${DB_USER}" -p"${DB_PASSWORD}" --execute="${command}"`,
 }
 
 const sql = {
