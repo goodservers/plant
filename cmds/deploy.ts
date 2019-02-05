@@ -1,7 +1,6 @@
 import chalk from 'chalk'
 import fs from 'fs-extra'
 import inquirer from 'inquirer'
-import mustache from 'mustache'
 import { Remote, Repository } from 'nodegit'
 import R from 'ramda'
 import tmp from 'tmp'
@@ -25,7 +24,7 @@ import { CURRENT_USER, GITLAB_DOMAIN, handleError, spinner } from '../util'
 import * as server from './server'
 
 export const tmpDirectory = tmp.dirSync()
-console.log('tmpDirectory', tmpDirectory)
+// console.log('tmpDirectory', tmpDirectory)
 const tempDirectory = tmpDirectory.name
 
 const fillVariables = async (
@@ -67,12 +66,12 @@ const waitUntilFinishedPipeline = async (
   repository: Repository,
   projectId: number,
   firstStatus: (status: Status) => any,
-): Promise<true | number> => {
+): Promise<false | number> => {
   const branch = await repository.getCurrentBranch()
   const commitSha = (await repository.getReferenceCommit(branch)).sha()
   try {
     await gitlab.waitUntilPipelineStatus(projectId, commitSha, firstStatus)
-    return true
+    return false
   } catch (pipelineID) {
     return pipelineID
   }
@@ -87,7 +86,7 @@ const cli = {
 }
 
 const sql = {
-  createDb: ({ DB_USERNAME }: server.TemplateVariables) => () => `CREATE DATABASE ${DB_USERNAME};`,
+  createDb: ({ DB_NAME }: server.TemplateVariables) => () => `CREATE DATABASE ${DB_NAME};`,
   grant: ({ DB_USERNAME, DB_PASSWORD, DB_DATABASE = '*', DB_TABLE = '*' }: server.TemplateVariables) => () =>
     `GRANT ALL PRIVILEGES ON ${DB_DATABASE}.${DB_TABLE} TO '${DB_USERNAME}'@'%' IDENTIFIED BY '${DB_PASSWORD}';`,
 }
@@ -101,10 +100,12 @@ const initDatabase = async (serverId: number): Promise<{ name: string; variables
   )(template.path)
 
   const projects = await gitlab.getProjects(template.name)
+  const groupProjects = projects.filter((project) => project.namespace.id === serverId)
+  // console.log(projects)
 
-  let repo = projects[0]
-  if (projects.length === 0) {
-    spinner.start('Creating new database instance.')
+  let repo = groupProjects[0]
+  if (groupProjects.length === 0) {
+    // spinner.start('Creating new database instance.')
 
     repo = await gitlab.createRepository(template.name, {
       namespace_id: serverId,
@@ -154,12 +155,12 @@ const initDatabase = async (serverId: number): Promise<{ name: string; variables
       )
     })
     spinner.stop()
-    pipelineResult
+    !pipelineResult
       ? spinner.succeed(`Your db instance is deployed!`)
       : spinner.fail(`Something wrong happened, see ${CURRENT_USER.web_url}/${projectSlug}/-/jobs/${pipelineResult}`)
 
     return { name: template.name, variables: { ...dbVariables, ...environmentVariables } }
-  } else if (projects.length > 1) {
+  } else if (groupProjects.length > 1) {
     repo = (await selectGitlabProject(projects)).project
   }
 
@@ -257,9 +258,13 @@ export const init = async () => {
       // check db and setup users
       const container = await ssh.execCommand(`docker ps -q --filter "name=${database.name}"`, { cwd: '/' })
 
-      const dbAccess: server.TemplateVariables = {
-        DB_HOSTNAME: database.variables.PROJECT_NAME,
-        DB_NAME: 'xxx' || getRandomDBName(),
+      // console.log('database', database)
+
+      let dbAccess: server.TemplateVariables = {
+        DB_HOSTNAME: database.name,
+        ROOT_DB_USERNAME: database.variables.DB_USERNAME,
+        ROOT_DB_PASSWORD: database.variables.DB_PASSWORD,
+        DB_NAME: getRandomDBName(),
         DB_USERNAME: getRandomDBName(),
         DB_PASSWORD: getRandomPassword(),
       }
@@ -275,15 +280,16 @@ export const init = async () => {
       const runCommandUntilSucceed = async (
         command: (vars: server.TemplateVariables) => string,
         variables: server.TemplateVariables,
-      ) => {
+      ): Promise<server.TemplateVariables> => {
         try {
           const output: Output = await ssh.execCommand(command(variables), {
             cwd: '/',
           })
-          console.log('output', command(variables), output);
+          // console.log('output', command(variables), output)
           if (output.stderr) {
             throw new Error(output.stderr)
           }
+          return variables
         } catch (error) {
           spinner.fail(error)
           const userInput = await confirm('Do you want to change some variable?')
@@ -299,52 +305,39 @@ export const init = async () => {
               ),
             ])
             runCommandUntilSucceed(command, newVariables)
+            return newVariables
           }
+          return {}
         }
       }
-
-      // const mapParams = (variables: Map<string, string>): string[] => Array.from(variables.values())
-
-      // inputs.text({
-      //   name: 'gitlabToken',
-      //   validate: (val: string) => !!val.length || 'We need gitlab acces token :(',
-      //   message: chalk.yellow('Please provide your Gitlab access token:'),
-      // })
 
       if (!R.isEmpty(container.stdout)) {
         const createDb = (props: server.TemplateVariables) =>
           R.compose(
-            dockerExec(props),
-            cli.mysql(props),
-            sql.createDb(props),
+            dockerExec({ PROJECT_NAME: props.DB_HOSTNAME }),
+            cli.mysql({ DB_USER: 'root', DB_PASSWORD: props.ROOT_DB_PASSWORD }),
+            sql.createDb({ DB_NAME: props.DB_NAME }),
           )()
 
-        // console.log('xxx', createDb({ ...dbAccess }))
-        await runCommandUntilSucceed(createDb, { ...dbAccess, PROJECT_NAME: dbAccess.DB_HOSTNAME })
+        dbAccess = await runCommandUntilSucceed(createDb, { ...dbAccess, PROJECT_NAME: dbAccess.DB_HOSTNAME })
 
-        // try {
-        //   // TODO: check if database exists in db, create
-        //   await ssh.execCommand(dockerExec(container.stdout)(mysqlCli(sql.createDb(dbAccess.DB_NAME))), {
-        //     cwd: '/',
-        //   })
-        // } catch (error) {
-        //   // TODO: handle errors - add posibility to enter manual input
-        //   console.log('Shell Error:', error)
-        // }
+        const grantDbPermission = (props: server.TemplateVariables) =>
+          R.compose(
+            dockerExec({ PROJECT_NAME: props.DB_HOSTNAME }),
+            cli.mysql({ DB_USER: 'root', DB_PASSWORD: props.ROOT_DB_PASSWORD }),
+            sql.grant({ DB_USERNAME: props.DB_USERNAME, DB_PASSWORD: props.DB_PASSWORD, DB_DATABASE: props.DB_NAME }),
+          )()
 
-        // try {
-        //   // TODO: check if user exists in db, create
-        //   await ssh.execCommand(
-        //     dockerExec(container.stdout)(
-        //       mysqlCli(sql.grant(dbAccess.DB_USERNAME, dbAccess.DB_PASSWORD, dbAccess.DB_NAME)),
-        //     ),
-        //     { cwd: '/' },
-        //   )
-        // } catch (error) {
-        //   // TODO: handle errors - add posibility to enter manual input
-        //   console.log('Shell Error:', error)
-        // }
+        dbAccess = await runCommandUntilSucceed(grantDbPermission, { ...dbAccess })
       }
+
+      console.log(chalk.green(`${database.name} credentials`))
+      console.log(chalk.green(`===============================`))
+      console.log(chalk.green(`hostname: ${dbAccess.DB_HOSTNAME}`))
+      console.log(chalk.green(`database: ${dbAccess.DB_NAME}`))
+      console.log(chalk.green(`login: ${dbAccess.DB_USERNAME}`))
+      console.log(chalk.green(`password: ${dbAccess.DB_PASSWORD}`))
+      console.log(chalk.green(`===============================`))
 
       // TODO: save DB variables
       await gitlab.saveOrUpdateVariables(gitlabProject.id, dbAccess)
@@ -381,7 +374,7 @@ export const init = async () => {
         )
       })
       spinner.stop()
-      pipelineResult
+      !pipelineResult
         ? spinner.succeed(`Your project is deployed 🎉 visit: http://${variables.VIRTUAL_HOST}`)
         : spinner.fail(`Something wrong happened, see ${CURRENT_USER.web_url}/${projectSlug}/-/jobs/${pipelineResult}`)
     }
@@ -395,3 +388,11 @@ export const init = async () => {
     await handleError(spinner, error)
   }
 }
+
+export const back = async () => {
+  try {
+    await init();
+  } catch (error) {
+    console.error(error.message);
+  }
+};

@@ -3,9 +3,9 @@ import R from 'ramda'
 import { TemplateVariables } from '../cmds/server'
 import { GITLAB_DOMAIN, GitlabAPI } from '../util'
 import * as git from './git'
-import { CurrentUser, Project, Repository as GitlabRepository, SSHKey, Status, Variable } from './gitlab.types'
+import { CurrentUser, Project, SSHKey, Status, Variable } from './gitlab.types'
 
-export const createRepository = (name: string, others: any): Promise<GitlabRepository> =>
+export const createRepository = (name: string, others: any): Promise<Project> =>
   GitlabAPI.Projects.create({
     name,
     ...others,

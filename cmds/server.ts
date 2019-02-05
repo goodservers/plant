@@ -6,6 +6,7 @@ import { convertToSlug, randomNine } from '../libs/helpers'
 import { Choice } from '../loaders'
 import * as serverPrompt from '../prompts/server'
 import { callMatchingMethod, GitlabAPI, spinner } from '../util'
+import * as action from './init'
 
 export const init = async () => {
   try {
@@ -41,7 +42,8 @@ export const create = async (): Promise<Group> => {
     protected: false,
   })
 
-  spinner.succeed(`${chalk.bold(server.name)} is saved. 🎉`)
+  // TODO: test ssh access
+  spinner.succeed(`Server ${chalk.bold(server.name)} is setuped in Gitlab. 🎉`)
 
   return newGroup
 }
@@ -78,7 +80,7 @@ export const listOrCreate = async (): Promise<{ server: Group }> => {
           name: 'server',
           message: 'Choose server to deploy',
           choices,
-        },
+        }
       ])
   }
 }
@@ -91,3 +93,14 @@ export const getVariablesForServer = async (groupId: number): Promise<TemplateVa
   (await GitlabAPI.GroupVariables.all(groupId))
     .map((variable: Variable) => ({ [variable.key]: variable.value }))
     .reduce(R.merge, {})
+
+export const back = async () => {
+  try {
+    console.log('back')
+    await action.init();
+  } catch (error) {
+    console.error(error.message);
+  }
+};
+
+export const exit = () => process.exit();

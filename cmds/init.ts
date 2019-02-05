@@ -1,10 +1,10 @@
-import { init } from '../prompts/init'
+import * as prompt from '../prompts/init'
 import * as deploy from './deploy'
 import * as server from './server'
 
-module.exports.init = async () => {
+export const init = async () => {
   try {
-    const anwsers = await init()
+    const anwsers = await prompt.init()
     switch (anwsers.init) {
       case 'deploy':
         deploy.init()
@@ -22,3 +22,5 @@ module.exports.init = async () => {
     console.error(error)
   }
 }
+
+export default init

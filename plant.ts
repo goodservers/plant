@@ -1,5 +1,6 @@
 import updateNotifier from 'update-notifier'
 import * as deploy from './cmds/deploy'
+import init from './cmds/init';
 import * as server from './cmds/server'
 import pkg from './package.json'
 import { callMatchingMethod, config, initAccount } from './util'
@@ -39,7 +40,8 @@ const main = async (argv_: string[]) => {
         console.log(help)
         break
       default:
-        deploy.init()
+        // deploy.init()
+        await init();
         break
     }
   } else {
