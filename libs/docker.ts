@@ -1,5 +1,6 @@
 import yaml from 'js-yaml'
 import R from 'ramda'
+import { fetchJson } from './fetch'
 
 interface Service {
   image: string
@@ -36,4 +37,9 @@ export const getExternalSources = (compose: DockerCompose): string[] => {
     (acc: string[], item: Service) => [...acc, ...(item.external_links ? item.external_links : [])],
     [],
   )
+}
+
+export const getPackageTags = async (packageName: string): Promise<string[]> => {
+  const tags: Array<{ name: string }> = await fetchJson('https://registry.hub.docker.com/v1/repositories/wordpress/tags')
+  return tags.filter((tag) => tag.name.match(/^(\d+\.)?(\d+\.)?(\*|\d+)$/)).map((tag) => tag.name)
 }

@@ -1,6 +1,7 @@
 import chalk from 'chalk'
 import Gitlab from 'gitlab'
 import Ora from 'ora'
+import tmp from 'tmp'
 import CacheConf from './libs/cache-conf'
 import { CurrentUser } from './libs/gitlab.types'
 import { checkGithubApiLimit } from './loaders';
@@ -12,6 +13,11 @@ export const spinner = new Ora()
 export const CURRENT_USER: CurrentUser = config.get('currentUser')
 export const GITLAB_DOMAIN: string = config.get('gitlabDomain')
 export const ACCESS_TOKEN: string = config.get('gitlabToken')
+
+const tmpDirectory = tmp.dirSync()
+export const TMP_DIRECTORY = tmpDirectory.name
+
+
 // console.log('ACCESS_TOKEN', ACCESS_TOKEN)
 export const GitlabAPI = new Gitlab({
   url: `https://${GITLAB_DOMAIN}`,

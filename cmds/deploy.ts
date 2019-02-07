@@ -1,171 +1,27 @@
 import chalk from 'chalk'
 import fs from 'fs-extra'
-import inquirer from 'inquirer'
 import { Remote, Repository } from 'nodegit'
 import R from 'ramda'
-import tmp from 'tmp'
 import { getExternalSources, loadDockerCompose } from '../libs/docker'
-import { parseEnvVariables } from '../libs/env'
 import * as filesystem from '../libs/filesystem'
 import * as git from '../libs/git'
 import * as github from '../libs/github'
 import * as gitlab from '../libs/gitlab'
 import { Status } from '../libs/gitlab.types'
 import { getRandomDBName, getRandomPassword } from '../libs/helpers'
-import { connect } from '../libs/ssh'
-import * as template from '../libs/template'
+import { connect, commands } from '../libs/ssh'
 import { loadAvailableTemplates } from '../loaders'
 import { confirm, repositoryName, selectGitlabProject } from '../prompts/create'
 import * as gitlabPrompt from '../prompts/gitlab'
-import * as inputs from '../prompts/inputs'
 import { selectTemplate } from '../prompts/templates'
-import { pairVariables, VariablesContext } from '../prompts/variables'
-import { CURRENT_USER, GITLAB_DOMAIN, handleError, spinner } from '../util'
+import { CURRENT_USER, GITLAB_DOMAIN, handleError, spinner, TMP_DIRECTORY } from '../util'
 import * as server from './server'
 
-export const tmpDirectory = tmp.dirSync()
-// console.log('tmpDirectory', tmpDirectory)
-const tempDirectory = tmpDirectory.name
-
-const fillVariables = async (
-  remoteUrl: string,
-  projectId: number,
-  serverId: number,
-  selectedTemplate: template.Template,
-  variablesContext: Partial<VariablesContext>,
-): Promise<server.TemplateVariables> => {
-  const serverVariables = await server.getVariablesForServer(serverId)
-
-  const knownVariables = {
-    ...serverVariables,
-    REGISTRY_URL: `${gitlab.getRegistryDomain()}/${gitlab.getUserAndProjectName(remoteUrl)}`,
-  }
-
-  const templateVariables = await template.getTemplateVariables(`${tempDirectory}/${selectedTemplate.path}`)
-  const neededTemplateVariables = templateVariables.filter(
-    (variable) => !Object.keys(knownVariables).includes(variable),
-  )
-
-  const userVariables = await pairVariables(R.uniq(neededTemplateVariables), {
-    ...variablesContext,
-    serverDomainOrIp: serverVariables.DEPLOYMENT_SERVER_IP,
-  } as VariablesContext)
-
-  const variables = {
-    ...knownVariables,
-    ...userVariables,
-  }
-
-  await template.writeTemplateVariables(`${tempDirectory}/${selectedTemplate.path}`, variables)
-  await gitlab.saveOrUpdateVariables(projectId, serverVariables)
-
-  return variables
-}
-
-const waitUntilFinishedPipeline = async (
-  repository: Repository,
-  projectId: number,
-  firstStatus: (status: Status) => any,
-): Promise<false | number> => {
-  const branch = await repository.getCurrentBranch()
-  const commitSha = (await repository.getReferenceCommit(branch)).sha()
-  try {
-    await gitlab.waitUntilPipelineStatus(projectId, commitSha, firstStatus)
-    return false
-  } catch (pipelineID) {
-    return pipelineID
-  }
-}
-
-const dockerExec = ({ PROJECT_NAME }: server.TemplateVariables) => (command: string) =>
-  `docker exec -t ${PROJECT_NAME} ${command}`
-
-const cli = {
-  mysql: ({ DB_USER = 'root', DB_PASSWORD }: server.TemplateVariables) => (command: string) =>
-    `mysql -u"${DB_USER}" -p"${DB_PASSWORD}" --execute="${command}"`,
-}
 
 const sql = {
   createDb: ({ DB_NAME }: server.TemplateVariables) => () => `CREATE DATABASE ${DB_NAME};`,
   grant: ({ DB_USERNAME, DB_PASSWORD, DB_DATABASE = '*', DB_TABLE = '*' }: server.TemplateVariables) => () =>
     `GRANT ALL PRIVILEGES ON ${DB_DATABASE}.${DB_TABLE} TO '${DB_USERNAME}'@'%' IDENTIFIED BY '${DB_PASSWORD}';`,
-}
-
-const initDatabase = async (serverId: number): Promise<{ name: string; variables: server.TemplateVariables }> => {
-  const { template } = await selectTemplate((template) => template.isDatabase === true)
-
-  await R.pipeP(
-    github.getTemplateFiles,
-    github.downloadTemplateFiles(tempDirectory),
-  )(template.path)
-
-  const projects = await gitlab.getProjects(template.name)
-  const groupProjects = projects.filter((project) => project.namespace.id === serverId)
-  // console.log(projects)
-
-  let repo = groupProjects[0]
-  if (groupProjects.length === 0) {
-    // spinner.start('Creating new database instance.')
-
-    repo = await gitlab.createRepository(template.name, {
-      namespace_id: serverId,
-      container_registry_enabled: true,
-    })
-    const serverVariables = await server.getVariablesForServer(serverId)
-
-    const dbRepo = await Repository.init(`${tempDirectory}/${template.path}`, 0)
-    await Remote.create(dbRepo, 'origin', repo.ssh_url_to_repo)
-
-    const remote = await git.getGitRemote(dbRepo, 'origin')
-
-    const projectSlug = git.getProjectSlug(remote.url())
-
-    // TODO: remove
-    const variablesContext = {
-      currentUser: CURRENT_USER,
-      projectName: projectSlug,
-      serverDomainOrIp: serverVariables.DEPLOYMENT_SERVER_IP,
-    }
-
-    const dbVariables = await fillVariables(remote.url(), repo.id, serverId, template, variablesContext)
-
-    // ENV variables
-    const envFiles = await filesystem.getEnvFiles(`${tempDirectory}/${template.path}`)
-    const emptyEnvVariables = await parseEnvVariables(envFiles)
-    // TODO: auto fill variables (USERNAME, PASSWORD)
-    const environmentVariables = await pairVariables(Object.keys(emptyEnvVariables), variablesContext)
-
-    await gitlab.saveOrUpdateVariables(repo.id, environmentVariables)
-
-    const oid = await git.addStatusFilesToCommit(dbRepo)
-
-    if (await git.isNewRepository(dbRepo)) {
-      git.commit(dbRepo, oid, 'Init database 🌱')
-    }
-
-    await git.push(remote)
-
-    spinner.start(`Waiting until deployment will be finished (takes around 2-5 minutes)`)
-
-    const pipelineResult = await waitUntilFinishedPipeline(dbRepo, repo.id, (status: Status) => {
-      spinner.start(
-        `Pipeline for db deployment has been started, you can check pipeline status on web: ${
-          CURRENT_USER.web_url
-        }/${projectSlug}/-/jobs/${status.id}`,
-      )
-    })
-    spinner.stop()
-    !pipelineResult
-      ? spinner.succeed(`Your db instance is deployed!`)
-      : spinner.fail(`Something wrong happened, see ${CURRENT_USER.web_url}/${projectSlug}/-/jobs/${pipelineResult}`)
-
-    return { name: template.name, variables: { ...dbVariables, ...environmentVariables } }
-  } else if (groupProjects.length > 1) {
-    repo = (await selectGitlabProject(projects)).project
-  }
-
-  const repoVariables = await gitlab.getProjectVariables(repo.id)
-  return { name: template.name, variables: repoVariables }
 }
 
 export const init = async () => {
@@ -205,7 +61,7 @@ export const init = async () => {
     const { template } = await selectTemplate((template) => template.isDatabase === false)
     await R.pipeP(
       github.getTemplateFiles,
-      github.downloadTemplateFiles(tempDirectory),
+      github.downloadTemplateFiles(TMP_DIRECTORY),
     )(template.path)
 
     const { server: selectedServer } = await server.listOrCreate()
@@ -231,9 +87,9 @@ export const init = async () => {
     }
 
     // TODO: Get variables from .env?
-    const variables = await fillVariables(remote.url(), gitlabProject.id, selectedServer.id, template, variablesContext)
+    const variables = await gitlab.fillVariables(remote.url(), gitlabProject.id, selectedServer.id, template, variablesContext)
 
-    const composeFileContent = await fs.readFile(`${tempDirectory}/${template.path}/docker-compose.yml`, 'utf8')
+    const composeFileContent = await fs.readFile(`${TMP_DIRECTORY}/${template.path}/docker-compose.yml`, 'utf8')
     const compose = loadDockerCompose(composeFileContent)
     const externalDependencies = getExternalSources(compose)
 
@@ -248,7 +104,7 @@ export const init = async () => {
       (await confirm(`Do you want to initiate also some database? Seems like you need: ${matchedTemplates.join(',')}`))
         .confirm
     ) {
-      const database = await initDatabase(selectedServer.id)
+      const database = await server.initDatabase(selectedServer.id)
 
       const ssh = await connect(
         variables.DEPLOYMENT_SERVER_IP,
@@ -269,66 +125,24 @@ export const init = async () => {
         DB_PASSWORD: getRandomPassword(),
       }
 
-      interface Output {
-        stdout: string
-        options?: any
-        stderr: string
-        signal: string
-        code: number
-      }
-
-      const runCommandUntilSucceed = async (
-        command: (vars: server.TemplateVariables) => string,
-        variables: server.TemplateVariables,
-      ): Promise<server.TemplateVariables> => {
-        try {
-          const output: Output = await ssh.execCommand(command(variables), {
-            cwd: '/',
-          })
-          // console.log('output', command(variables), output)
-          if (output.stderr) {
-            throw new Error(output.stderr)
-          }
-          return variables
-        } catch (error) {
-          spinner.fail(error)
-          const userInput = await confirm('Do you want to change some variable?')
-          if (userInput.confirm) {
-            const newVariables: server.TemplateVariables = await inquirer.prompt([
-              ...Object.keys(variables).map((variableName) =>
-                inputs.text({
-                  default: variables[variableName],
-                  message: chalk.yellow(`Please fill variable: ${variableName}`),
-                  name: variableName,
-                  validate: (val: string) => !!val.length,
-                }),
-              ),
-            ])
-            runCommandUntilSucceed(command, newVariables)
-            return newVariables
-          }
-          return {}
-        }
-      }
-
       if (!R.isEmpty(container.stdout)) {
         const createDb = (props: server.TemplateVariables) =>
           R.compose(
-            dockerExec({ PROJECT_NAME: props.DB_HOSTNAME }),
-            cli.mysql({ DB_USER: 'root', DB_PASSWORD: props.ROOT_DB_PASSWORD }),
+            commands.docker.exec({ PROJECT_NAME: props.DB_HOSTNAME }),
+            commands.cli.mysql({ DB_USER: 'root', DB_PASSWORD: props.ROOT_DB_PASSWORD }),
             sql.createDb({ DB_NAME: props.DB_NAME }),
           )()
 
-        dbAccess = await runCommandUntilSucceed(createDb, { ...dbAccess, PROJECT_NAME: dbAccess.DB_HOSTNAME })
+        dbAccess = await ssh.runCommandUntilSucceed(createDb, { ...dbAccess, PROJECT_NAME: dbAccess.DB_HOSTNAME })
 
         const grantDbPermission = (props: server.TemplateVariables) =>
           R.compose(
-            dockerExec({ PROJECT_NAME: props.DB_HOSTNAME }),
-            cli.mysql({ DB_USER: 'root', DB_PASSWORD: props.ROOT_DB_PASSWORD }),
+            commands.docker.exec({ PROJECT_NAME: props.DB_HOSTNAME }),
+            commands.cli.mysql({ DB_USER: 'root', DB_PASSWORD: props.ROOT_DB_PASSWORD }),
             sql.grant({ DB_USERNAME: props.DB_USERNAME, DB_PASSWORD: props.DB_PASSWORD, DB_DATABASE: props.DB_NAME }),
           )()
 
-        dbAccess = await runCommandUntilSucceed(grantDbPermission, { ...dbAccess })
+        dbAccess = await ssh.runCommandUntilSucceed(grantDbPermission, { ...dbAccess })
       }
 
       console.log(chalk.green(`${database.name} credentials`))
@@ -344,8 +158,8 @@ export const init = async () => {
     }
 
     // Copy and remove
-    const filesToCommit = await filesystem.copyFilesFromDirectoryToCurrent(`${tempDirectory}/${template.path}`)
-    await filesystem.removeFolder(tempDirectory)
+    const filesToCommit = await filesystem.copyFilesFromDirectoryToCurrent(`${TMP_DIRECTORY}/${template.path}`)
+    await filesystem.removeFolder(TMP_DIRECTORY)
 
     // Commit and wait for pipeline
     const commitChanges = await confirm('Do you want to commit and push your changes to deploy?')
@@ -366,7 +180,7 @@ export const init = async () => {
 
       spinner.start(`Waiting until pipeline will be finished (takes around 2-5 minutes)`)
 
-      const pipelineResult = await waitUntilFinishedPipeline(repository, gitlabProject.id, (status: Status) => {
+      const pipelineResult = await gitlab.waitUntilFinishedPipeline(repository, gitlabProject.id, (status: Status) => {
         spinner.start(
           `Pipeline for deployment has been started, you can check pipeline status on web: ${
             CURRENT_USER.web_url
@@ -381,9 +195,9 @@ export const init = async () => {
 
     // remove temp dir
     // tmpDirectory.removeCallback();
-    await filesystem.removeFolder(tempDirectory)
+    await filesystem.removeFolder(TMP_DIRECTORY)
   } catch (error) {
-    // await filesystem.removeFolder(tempDirectory)
+    // await filesystem.removeFolder(TMP_DIRECTORY)
     // tmpDirectory.removeCallback();
     await handleError(spinner, error)
   }

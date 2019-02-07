@@ -1,15 +1,20 @@
 import { Remote, Repository } from 'nodegit'
 import R from 'ramda'
-import { TemplateVariables } from '../cmds/server'
-import { GITLAB_DOMAIN, GitlabAPI } from '../util'
+import * as server from '../cmds/server'
+import { pairVariables, VariablesContext } from '../prompts/variables';
+import { GITLAB_DOMAIN, GitlabAPI, TMP_DIRECTORY } from '../util'
 import * as git from './git'
 import { CurrentUser, Project, SSHKey, Status, Variable } from './gitlab.types'
+import * as template from './template'
 
 export const createRepository = (name: string, others: any): Promise<Project> =>
   GitlabAPI.Projects.create({
     name,
     ...others,
   })
+
+export const deleteRepository = (projectId: number): Promise<Project> =>
+  GitlabAPI.Projects.remove(projectId)
 
 export const getRegistryDomain = () => `registry.${GITLAB_DOMAIN}`
 
@@ -41,13 +46,13 @@ export const getVariablesKeys = (variables: Variable[]): string[] =>
     R.flatten,
   )(variables) as any
 
-export const getProjectVariables = async (projectId: number): Promise<TemplateVariables> =>
+export const getProjectVariables = async (projectId: number): Promise<server.TemplateVariables> =>
   (await GitlabAPI.ProjectVariables.all(projectId)).reduce(
-    (acc: TemplateVariables, item: Variable) => ({ ...acc, [item.key]: item.value }),
+    (acc: server.TemplateVariables, item: Variable) => ({ ...acc, [item.key]: item.value }),
     {},
   )
 
-export const saveOrUpdateVariables = async (projectId: number, variables: TemplateVariables) => {
+export const saveOrUpdateVariables = async (projectId: number, variables: server.TemplateVariables) => {
   const usedVariablesKeys = getVariablesKeys(await GitlabAPI.ProjectVariables.all(projectId))
 
   return R.pipe(
@@ -89,6 +94,7 @@ export const waitUntilPipelineStatus = async (
   return new Promise((resolve, reject) => {
     const retry = async (maxRetry: number, timeout: number) => {
       const status: Status[] = await GitlabAPI.Commits.status(projectId, sha1)
+      console.log(count, status)
       if (count === 0) {
         firstStatus(status[0])
       }
@@ -116,3 +122,60 @@ export const getUserSSHKeys = async (currentUser: CurrentUser): Promise<SSHKey[]
 
 export const hasUserSomeSSHKeys = async (currentUser: CurrentUser): Promise<boolean> =>
   (await GitlabAPI.UserKeys.all(currentUser)).some(R.identity)
+
+
+export const waitUntilFinishedPipeline = async (
+  repository: Repository,
+  projectId: number,
+  firstStatus: (status: Status) => any,
+): Promise<false | number> => {
+  const branch = await repository.getCurrentBranch()
+  const commitSha = (await repository.getReferenceCommit(branch)).sha()
+  try {
+    await waitUntilPipelineStatus(projectId, commitSha, firstStatus)
+    return false
+  } catch (pipelineID) {
+    return pipelineID
+  }
+}
+
+export const getVariablesForServer = async (groupId: number): Promise<server.TemplateVariables> =>
+  (await GitlabAPI.GroupVariables.all(groupId))
+    .map((variable: Variable) => ({ [variable.key]: variable.value }))
+    .reduce(R.merge, {})
+
+
+export const fillVariables = async (
+  remoteUrl: string,
+  projectId: number,
+  serverId: number,
+  selectedTemplate: template.Template,
+  variablesContext: Partial<VariablesContext>,
+): Promise<server.TemplateVariables> => {
+  const serverVariables = await getVariablesForServer(serverId)
+
+  const knownVariables = {
+    ...serverVariables,
+    REGISTRY_URL: `${getRegistryDomain()}/${getUserAndProjectName(remoteUrl)}`,
+  }
+
+  const templateVariables = await template.getTemplateVariables(`${TMP_DIRECTORY}/${selectedTemplate.path}`)
+  const neededTemplateVariables = templateVariables.filter(
+    (variable) => !Object.keys(knownVariables).includes(variable),
+  )
+
+  const userVariables = await pairVariables(R.uniq(neededTemplateVariables), {
+    ...variablesContext,
+    serverDomainOrIp: serverVariables.DEPLOYMENT_SERVER_IP,
+  } as VariablesContext)
+
+  const variables = {
+    ...knownVariables,
+    ...userVariables,
+  }
+
+  await template.writeTemplateVariables(`${TMP_DIRECTORY}/${selectedTemplate.path}`, variables)
+  await saveOrUpdateVariables(projectId, serverVariables)
+
+  return variables
+}
